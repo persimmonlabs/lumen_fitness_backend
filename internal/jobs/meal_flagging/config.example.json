@@ -1,0 +1,10 @@
+{
+  "enabled": true,
+  "schedule_time": "02:00",
+  "batch_size": 1000,
+  "lookback_days": 1,
+  "macro_tolerance_percent": 10.0,
+  "confidence_threshold": 0.7,
+  "duplicate_window_minutes": 30,
+  "duplicate_similarity_percent": 80.0
+}

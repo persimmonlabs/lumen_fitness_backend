@@ -1,0 +1,171 @@
+// This is a TEMPLATE for creating new features
+// Copy this file, rename it, and customize for your feature
+
+package handlers
+
+import (
+	"log/slog"
+	"net/http"
+	"time"
+
+	"github.com/pradord/lumen_final/backend/internal/errors"
+	"github.com/pradord/lumen_final/backend/internal/supabase"
+)
+
+// FeatureHandler handles feature-related endpoints
+type FeatureHandler struct {
+	*BaseHandler
+	supabase *supabase.Client
+}
+
+// NewFeatureHandler creates a new feature handler
+func NewFeatureHandler(logger *slog.Logger, sb *supabase.Client) *FeatureHandler {
+	return &FeatureHandler{
+		BaseHandler: NewBaseHandler(logger),
+		supabase:    sb,
+	}
+}
+
+// Request/Response models
+type CreateFeatureRequest struct {
+	Name        string `json:"name" validate:"required,min=3,max=100"`
+	Description string `json:"description" validate:"max=500"`
+}
+
+type FeatureResponse struct {
+	ID          string    `json:"id"`
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	CreatedAt   time.Time `json:"created_at"`
+}
+
+// Create handles POST /api/v1/features
+func (h *FeatureHandler) Create(w http.ResponseWriter, r *http.Request) {
+	// 1. Decode and validate request
+	var req CreateFeatureRequest
+	if err := h.DecodeJSON(r, &req); err != nil {
+		if errors.IsValidation(err) {
+			h.ErrorResponse(w, 400, "VALIDATION_ERROR", err.Error(), nil)
+			return
+		}
+		h.BadRequestError(w, "Invalid request body", nil)
+		return
+	}
+
+	// 2. Business logic here (if needed)
+	// Example: check duplicates, apply rules, etc.
+
+	// 3. Insert into Supabase
+	// Note: Replace 'features' with your actual table name
+	data := map[string]interface{}{
+		"name":        req.Name,
+		"description": req.Description,
+	}
+
+	var result []FeatureResponse
+	err := h.supabase.DB.From("features").Insert(data).Execute(&result)
+	if err != nil {
+		h.logger.Error("failed to create feature",
+			slog.String("error", err.Error()),
+		)
+		h.InternalError(w, "Failed to create feature", err)
+		return
+	}
+
+	// 4. Return success response
+	h.SuccessResponse(w, http.StatusCreated, result[0], nil)
+}
+
+// Get handles GET /api/v1/features/:id
+func (h *FeatureHandler) Get(w http.ResponseWriter, r *http.Request) {
+	// Extract ID from URL path
+	id := r.PathValue("id") // Go 1.22+ mux
+
+	// Query Supabase
+	var result []FeatureResponse
+	err := h.supabase.DB.From("features").
+		Select("*").
+		Eq("id", id).
+		Single().
+		Execute(&result)
+
+	if err != nil {
+		h.NotFoundError(w, "Feature not found")
+		return
+	}
+
+	h.SuccessResponse(w, http.StatusOK, result[0], nil)
+}
+
+// List handles GET /api/v1/features
+func (h *FeatureHandler) List(w http.ResponseWriter, r *http.Request) {
+	// Parse query parameters for pagination
+	// page := r.URL.Query().Get("page")
+	// limit := r.URL.Query().Get("limit")
+
+	var results []FeatureResponse
+	err := h.supabase.DB.From("features").
+		Select("*").
+		Order("created_at", &supabase.OrderOpts{Ascending: false}).
+		Execute(&results)
+
+	if err != nil {
+		h.InternalError(w, "Failed to list features", err)
+		return
+	}
+
+	h.SuccessResponse(w, http.StatusOK, results, nil)
+}
+
+// Update handles PUT /api/v1/features/:id
+func (h *FeatureHandler) Update(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	var req CreateFeatureRequest
+	if err := h.DecodeJSON(r, &req); err != nil {
+		h.BadRequestError(w, "Invalid request body", nil)
+		return
+	}
+
+	// Update in Supabase
+	data := map[string]interface{}{
+		"name":        req.Name,
+		"description": req.Description,
+	}
+
+	var result []FeatureResponse
+	err := h.supabase.DB.From("features").
+		Update(data).
+		Eq("id", id).
+		Execute(&result)
+
+	if err != nil {
+		h.InternalError(w, "Failed to update feature", err)
+		return
+	}
+
+	if len(result) == 0 {
+		h.NotFoundError(w, "Feature not found")
+		return
+	}
+
+	h.SuccessResponse(w, http.StatusOK, result[0], nil)
+}
+
+// Delete handles DELETE /api/v1/features/:id
+func (h *FeatureHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	id := r.PathValue("id")
+
+	err := h.supabase.DB.From("features").
+		Delete().
+		Eq("id", id).
+		Execute(nil)
+
+	if err != nil {
+		h.InternalError(w, "Failed to delete feature", err)
+		return
+	}
+
+	// Return 204 No Content
+	w.WriteHeader(http.StatusNoContent)
+}

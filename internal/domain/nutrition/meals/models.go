@@ -74,10 +74,10 @@ type MealItem struct {
 	Quantity  float64   `json:"quantity" db:"quantity"`
 	Unit      string    `json:"unit" db:"unit"`
 	Calories  float64   `json:"calories" db:"calories"`
-	ProteinG  float64   `json:"protein_g" db:"protein_g"`
-	CarbsG    float64   `json:"carbs_g" db:"carbs_g"`
-	FatG      float64   `json:"fat_g" db:"fat_g"`
-	FiberG    float64   `json:"fiber_g" db:"fiber_g"`
+	ProteinG  float64   `json:"protein_g" db:"protein"`
+	CarbsG    float64   `json:"carbs_g" db:"carbs"`
+	FatG      float64   `json:"fat_g" db:"fat"`
+	FiberG    float64   `json:"fiber_g" db:"fiber"`
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 

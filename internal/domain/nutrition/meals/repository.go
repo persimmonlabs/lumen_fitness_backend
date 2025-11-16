@@ -108,7 +108,7 @@ func (r *repository) GetMealByID(ctx context.Context, userID, mealID uuid.UUID) 
 
 	// Fetch items
 	itemsQuery := `
-		SELECT id, meal_id, name, quantity, unit, calories, protein_g, carbs_g, fat_g, fiber_g, created_at
+		SELECT id, meal_id, name, quantity, unit, calories, protein, carbs, fat, fiber, created_at
 		FROM meal_items
 		WHERE meal_id = $1
 		ORDER BY created_at
@@ -223,7 +223,7 @@ func (r *repository) UpdateMeal(ctx context.Context, userID uuid.UUID, meal *Mea
 	// Insert new items
 	for _, item := range items {
 		_, err = tx.ExecContext(ctx, `
-			INSERT INTO meal_items (id, meal_id, name, quantity, unit, calories, protein_g, carbs_g, fat_g, fiber_g)
+			INSERT INTO meal_items (id, meal_id, name, quantity, unit, calories, protein, carbs, fat, fiber)
 			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		`, item.ID, meal.ID, item.Name, item.Quantity, item.Unit,
 			item.Calories, item.ProteinG, item.CarbsG, item.FatG, item.FiberG)
@@ -361,7 +361,7 @@ func (r *repository) UpdateDraftStatus(ctx context.Context, draftID uuid.UUID, s
 	if status == DraftStatusReady && len(items) > 0 {
 		for _, item := range items {
 			_, err = tx.ExecContext(ctx, `
-				INSERT INTO meal_items (id, meal_id, name, quantity, unit, calories, protein_g, carbs_g, fat_g, fiber_g)
+				INSERT INTO meal_items (id, meal_id, name, quantity, unit, calories, protein, carbs, fat, fiber)
 				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 			`, item.ID, draftID, item.Name, item.Quantity, item.Unit,
 				item.Calories, item.ProteinG, item.CarbsG, item.FatG, item.FiberG)

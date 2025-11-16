@@ -34,7 +34,9 @@ func NewRepository(db *sqlx.DB) Repository {
 	return &repository{db: db}
 }
 
-// CreateMealWithItems creates a meal with items using RPC function
+// CreateMealWithItems creates a meal with items.
+// NOTE: Database triggers (migration 012) automatically calculate total_* fields from meal_items.
+// DO NOT pass total values - they will be overwritten by triggers after item insertion.
 func (r *repository) CreateMealWithItems(ctx context.Context, userID uuid.UUID, meal *Meal, items []MealItem) (*MealWithItems, error) {
 	// Convert items to JSON for RPC function
 	itemsJSON, err := json.Marshal(items)
@@ -47,6 +49,8 @@ func (r *repository) CreateMealWithItems(ctx context.Context, userID uuid.UUID, 
 		return nil, fmt.Errorf("marshal photos: %w", err)
 	}
 
+	// NOTE: Total nutrition values (params $6-$10) are set to 0
+	// Database triggers will automatically calculate them from meal_items
 	query := `
 		SELECT create_meal_with_items(
 			$1::uuid, $2::text, $3::timestamptz, $4::jsonb,
@@ -62,18 +66,18 @@ func (r *repository) CreateMealWithItems(ctx context.Context, userID uuid.UUID, 
 		meal.ConsumedAt,
 		photosJSON,
 		meal.Notes,
-		meal.TotalCalories,
-		meal.TotalProteinG,
-		meal.TotalCarbsG,
-		meal.TotalFatG,
-		meal.TotalFiberG,
+		0.0, // total_calories - triggers will calculate
+		0.0, // total_protein_g - triggers will calculate
+		0.0, // total_carbs_g - triggers will calculate
+		0.0, // total_fat_g - triggers will calculate
+		0.0, // total_fiber_g - triggers will calculate
 		itemsJSON,
 	).Scan(&mealID)
 	if err != nil {
 		return nil, fmt.Errorf("create meal: %w", err)
 	}
 
-	// Fetch the created meal with items
+	// Fetch the created meal with items (totals will be calculated by triggers)
 	return r.GetMealByID(ctx, userID, mealID)
 }
 
@@ -176,7 +180,9 @@ func (r *repository) ListMealsByUser(ctx context.Context, userID uuid.UUID, filt
 	return meals, total, nil
 }
 
-// UpdateMeal updates a meal and its items
+// UpdateMeal updates a meal and its items.
+// NOTE: Database triggers (migration 012) automatically calculate total_* fields from meal_items.
+// DO NOT manually set totals - they are recalculated after item INSERT/UPDATE/DELETE.
 func (r *repository) UpdateMeal(ctx context.Context, userID uuid.UUID, meal *Meal, items []MealItem) (*MealWithItems, error) {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -189,19 +195,16 @@ func (r *repository) UpdateMeal(ctx context.Context, userID uuid.UUID, meal *Mea
 		return nil, fmt.Errorf("marshal photos: %w", err)
 	}
 
-	// Update meal
+	// Update meal metadata only (NOT totals - triggers handle those)
 	updateQuery := `
 		UPDATE meals
-		SET meal_type = $1, consumed_at = $2, photos = $3, notes = $4,
-		    total_calories = $5, total_protein_g = $6, total_carbs_g = $7,
-		    total_fat_g = $8, total_fiber_g = $9, updated_at = NOW()
-		WHERE id = $10 AND user_id = $11 AND deleted_at IS NULL
+		SET meal_type = $1, consumed_at = $2, photos = $3, notes = $4, updated_at = NOW()
+		WHERE id = $5 AND user_id = $6 AND deleted_at IS NULL
 	`
 
 	result, err := tx.ExecContext(ctx, updateQuery,
 		meal.MealType, meal.ConsumedAt, photosJSON, meal.Notes,
-		meal.TotalCalories, meal.TotalProteinG, meal.TotalCarbsG,
-		meal.TotalFatG, meal.TotalFiberG, meal.ID, userID,
+		meal.ID, userID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("update meal: %w", err)
@@ -212,13 +215,13 @@ func (r *repository) UpdateMeal(ctx context.Context, userID uuid.UUID, meal *Mea
 		return nil, fmt.Errorf("meal not found")
 	}
 
-	// Delete existing items
+	// Delete existing items (triggers will update meal totals to 0)
 	_, err = tx.ExecContext(ctx, "DELETE FROM meal_items WHERE meal_id = $1", meal.ID)
 	if err != nil {
 		return nil, fmt.Errorf("delete items: %w", err)
 	}
 
-	// Insert new items
+	// Insert new items (triggers will recalculate meal totals)
 	for _, item := range items {
 		_, err = tx.ExecContext(ctx, `
 			INSERT INTO meal_items (id, meal_id, name, quantity, unit, calories, protein, carbs, fat, fiber)
@@ -234,6 +237,7 @@ func (r *repository) UpdateMeal(ctx context.Context, userID uuid.UUID, meal *Mea
 		return nil, fmt.Errorf("commit: %w", err)
 	}
 
+	// Fetch updated meal with correctly calculated totals from database triggers
 	return r.GetMealByID(ctx, userID, meal.ID)
 }
 
@@ -312,7 +316,9 @@ func (r *repository) CreateDraftMeal(ctx context.Context, userID uuid.UUID, meal
 	return draftID, nil
 }
 
-// UpdateDraftStatus updates the draft status and optionally adds items
+// UpdateDraftStatus updates the draft status and optionally adds items.
+// NOTE: Database triggers (migration 012) automatically calculate meal totals from items.
+// DO NOT manually calculate totals - insert items and let triggers handle it.
 func (r *repository) UpdateDraftStatus(ctx context.Context, draftID uuid.UUID, status DraftStatus, items []MealItem, errMsg *string) error {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -320,31 +326,15 @@ func (r *repository) UpdateDraftStatus(ctx context.Context, draftID uuid.UUID, s
 	}
 	defer tx.Rollback()
 
-	// Calculate totals if items provided
-	var totalCalories, totalProtein, totalCarbs, totalFat, totalFiber float64
-	if len(items) > 0 {
-		for _, item := range items {
-			totalCalories += item.Calories
-			totalProtein += item.ProteinG
-			totalCarbs += item.CarbsG
-			totalFat += item.FatG
-			totalFiber += item.FiberG
-		}
-	}
-
-	// Update meal status and totals
+	// Update meal status only (NOT totals - triggers calculate those from items)
 	updateQuery := `
 		UPDATE meals
-		SET draft_status = $1, draft_error = $2,
-		    total_calories = $3, total_protein_g = $4, total_carbs_g = $5,
-		    total_fat_g = $6, total_fiber_g = $7, updated_at = NOW()
-		WHERE id = $8 AND is_draft = TRUE
+		SET draft_status = $1, draft_error = $2, updated_at = NOW()
+		WHERE id = $3 AND is_draft = TRUE
 	`
 
 	result, err := tx.ExecContext(ctx, updateQuery,
-		status, errMsg,
-		totalCalories, totalProtein, totalCarbs, totalFat, totalFiber,
-		draftID,
+		status, errMsg, draftID,
 	)
 	if err != nil {
 		return fmt.Errorf("update draft status: %w", err)
@@ -356,6 +346,7 @@ func (r *repository) UpdateDraftStatus(ctx context.Context, draftID uuid.UUID, s
 	}
 
 	// Insert items if provided and status is ready
+	// Database triggers will automatically calculate and update meal totals
 	if status == DraftStatusReady && len(items) > 0 {
 		for _, item := range items {
 			_, err = tx.ExecContext(ctx, `

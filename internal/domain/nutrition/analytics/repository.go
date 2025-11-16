@@ -27,6 +27,8 @@ func NewRepository(db *sql.DB) Repository {
 // GetDailyNutrition retrieves aggregated nutrition data for a specific day using RPC
 func (r *repository) GetDailyNutrition(ctx context.Context, userID string, date time.Time, timezone string) (*DailyTotals, error) {
 	// Use RPC function get_daily_nutrition
+	// NOTE: The RPC function uses pre-calculated meals.total_* columns (maintained by database triggers)
+	// This ensures we ALWAYS get the single source of truth for nutrition totals
 	query := `
 		SELECT * FROM get_daily_nutrition($1, $2, $3)
 	`

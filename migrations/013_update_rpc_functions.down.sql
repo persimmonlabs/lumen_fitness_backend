@@ -1,14 +1,18 @@
 -- =====================================================
--- Lumen Nutrition Tracker - RPC Functions Migration
--- Version: 002
--- Description: Database functions for atomic operations
+-- Lumen Nutrition Tracker - Rollback RPC Functions Update
+-- Version: 013
+-- Description: Safely rollback migration 013 to restore old RPC function signatures
+--              This restores functions that use food_name and meal_time
 -- =====================================================
 
+BEGIN;
+
 -- =====================================================
--- CREATE MEAL WITH ITEMS (Atomic Transaction)
+-- RESTORE: create_meal_with_items (Original from 002)
 -- =====================================================
--- Creates a meal and all its items in a single transaction
--- Returns the complete meal with all items
+DROP FUNCTION IF EXISTS create_meal_with_items(UUID, TEXT, TIMESTAMPTZ, JSONB, TEXT, JSONB);
+
+-- Restore original function signature from migration 002
 CREATE OR REPLACE FUNCTION create_meal_with_items(
     p_user_id UUID,
     p_meal_name TEXT,
@@ -18,7 +22,7 @@ CREATE OR REPLACE FUNCTION create_meal_with_items(
 )
 RETURNS JSONB
 LANGUAGE plpgsql
-SECURITY DEFINER -- Runs with function owner privileges
+SECURITY DEFINER
 AS $$
 DECLARE
     v_meal_id UUID;
@@ -40,12 +44,12 @@ BEGIN
         RAISE EXCEPTION 'At least one meal item is required';
     END IF;
 
-    -- Create the meal
+    -- Create the meal (using old schema: name, meal_time)
     INSERT INTO meals (user_id, name, meal_time, notes)
     VALUES (p_user_id, p_meal_name, p_meal_time, p_notes)
     RETURNING id INTO v_meal_id;
 
-    -- Insert all meal items
+    -- Insert all meal items (using old schema: food_name)
     FOR v_meal_item IN SELECT * FROM jsonb_array_elements(p_items)
     LOOP
         INSERT INTO meal_items (
@@ -78,7 +82,7 @@ BEGIN
         );
     END LOOP;
 
-    -- Return complete meal with items
+    -- Return complete meal with items (using old schema)
     SELECT jsonb_build_object(
         'id', m.id,
         'user_id', m.user_id,
@@ -109,17 +113,17 @@ BEGIN
             WHERE mi.meal_id = m.id
         ),
         'totals', (
-            -- NOTE: We use pre-calculated meals.total_* columns which are maintained by database triggers.
-            -- After meal creation, these will be automatically updated by the calculate_meal_totals() trigger.
             SELECT jsonb_build_object(
-                'calories', m.total_calories,
-                'protein', m.total_protein_g,
-                'carbs', m.total_carbs_g,
-                'fat', m.total_fat_g,
-                'fiber', m.total_fiber_g,
-                'sugar', 0,  -- TODO: Add total_sugar_g if needed
-                'sodium', 0  -- TODO: Add total_sodium_g if needed
+                'calories', COALESCE(SUM(mi.calories), 0),
+                'protein', COALESCE(SUM(mi.protein), 0),
+                'carbs', COALESCE(SUM(mi.carbs), 0),
+                'fat', COALESCE(SUM(mi.fat), 0),
+                'fiber', COALESCE(SUM(mi.fiber), 0),
+                'sugar', COALESCE(SUM(mi.sugar), 0),
+                'sodium', COALESCE(SUM(mi.sodium), 0)
             )
+            FROM meal_items mi
+            WHERE mi.meal_id = m.id
         )
     )
     INTO v_result
@@ -133,10 +137,8 @@ $$;
 COMMENT ON FUNCTION create_meal_with_items IS 'Atomically creates a meal with all its items. Returns complete meal object with totals.';
 
 -- =====================================================
--- GET DAILY NUTRITION (Aggregated Report)
+-- RESTORE: get_daily_nutrition (Original from 002)
 -- =====================================================
--- Returns nutrition totals for a specific date
--- Respects user timezone for date boundaries
 CREATE OR REPLACE FUNCTION get_daily_nutrition(
     p_user_id UUID,
     p_date DATE,
@@ -162,26 +164,22 @@ BEGIN
     END IF;
 
     -- Calculate date boundaries in user timezone
-    -- Start: 00:00:00 in user timezone
-    -- End: 23:59:59.999999 in user timezone
     v_start_time := (p_date || ' 00:00:00')::TIMESTAMP AT TIME ZONE p_timezone;
     v_end_time := (p_date || ' 23:59:59.999999')::TIMESTAMP AT TIME ZONE p_timezone;
 
-    -- Aggregate nutrition data for the date range
-    -- NOTE: We use pre-calculated meals.total_* columns which are maintained by database triggers.
-    -- This is the SINGLE source of truth - DO NOT manually SUM from meal_items.
+    -- Aggregate nutrition data for the date range (using meal_time)
     SELECT jsonb_build_object(
         'date', p_date,
         'timezone', p_timezone,
         'totals', COALESCE(
             jsonb_build_object(
-                'calories', ROUND(SUM(m.total_calories)::NUMERIC, 1),
-                'protein', ROUND(SUM(m.total_protein_g)::NUMERIC, 1),
-                'carbs', ROUND(SUM(m.total_carbs_g)::NUMERIC, 1),
-                'fat', ROUND(SUM(m.total_fat_g)::NUMERIC, 1),
-                'fiber', ROUND(SUM(m.total_fiber_g)::NUMERIC, 1),
-                'sugar', 0,  -- TODO: Add total_sugar_g column if needed
-                'sodium', 0  -- TODO: Add total_sodium_g column if needed
+                'calories', ROUND(SUM(mi.calories)::NUMERIC, 1),
+                'protein', ROUND(SUM(mi.protein)::NUMERIC, 1),
+                'carbs', ROUND(SUM(mi.carbs)::NUMERIC, 1),
+                'fat', ROUND(SUM(mi.fat)::NUMERIC, 1),
+                'fiber', ROUND(SUM(mi.fiber)::NUMERIC, 1),
+                'sugar', ROUND(SUM(mi.sugar)::NUMERIC, 1),
+                'sodium', ROUND(SUM(mi.sodium)::NUMERIC, 1)
             ),
             jsonb_build_object(
                 'calories', 0,
@@ -206,24 +204,27 @@ BEGIN
             FROM user_daily_goals g
             WHERE g.user_id = p_user_id
         ),
-        'meal_count', COUNT(m.id),
+        'meal_count', COUNT(DISTINCT m.id),
         'meals', COALESCE(
             jsonb_agg(
-                jsonb_build_object(
+                DISTINCT jsonb_build_object(
                     'id', m.id,
                     'name', m.name,
                     'meal_time', m.meal_time,
                     'item_count', (
                         SELECT COUNT(*)
-                        FROM meal_items mi
-                        WHERE mi.meal_id = m.id
+                        FROM meal_items mi2
+                        WHERE mi2.meal_id = m.id
                     ),
-                    'totals', jsonb_build_object(
-                        'calories', m.total_calories,
-                        'protein', m.total_protein_g,
-                        'carbs', m.total_carbs_g,
-                        'fat', m.total_fat_g,
-                        'fiber', m.total_fiber_g
+                    'totals', (
+                        SELECT jsonb_build_object(
+                            'calories', COALESCE(SUM(mi2.calories), 0),
+                            'protein', COALESCE(SUM(mi2.protein), 0),
+                            'carbs', COALESCE(SUM(mi2.carbs), 0),
+                            'fat', COALESCE(SUM(mi2.fat), 0)
+                        )
+                        FROM meal_items mi2
+                        WHERE mi2.meal_id = m.id
                     )
                 )
             ) FILTER (WHERE m.id IS NOT NULL),
@@ -232,6 +233,7 @@ BEGIN
     )
     INTO v_result
     FROM meals m
+    LEFT JOIN meal_items mi ON mi.meal_id = m.id
     WHERE m.user_id = p_user_id
         AND m.meal_time >= v_start_time
         AND m.meal_time <= v_end_time;
@@ -243,9 +245,8 @@ $$;
 COMMENT ON FUNCTION get_daily_nutrition IS 'Returns aggregated nutrition totals for a specific date in user timezone. Includes goals comparison and meal breakdown.';
 
 -- =====================================================
--- CREATE TEMPLATE FROM MEAL
+-- RESTORE: create_template_from_meal (Original from 002)
 -- =====================================================
--- Copies a meal and its items into a reusable template
 CREATE OR REPLACE FUNCTION create_template_from_meal(
     p_user_id UUID,
     p_meal_id UUID,
@@ -283,7 +284,7 @@ BEGIN
     VALUES (p_user_id, p_template_name, p_description)
     RETURNING id INTO v_template_id;
 
-    -- Copy meal items to template items
+    -- Copy meal items to template items (using food_name)
     INSERT INTO template_items (
         template_id,
         food_name,
@@ -312,7 +313,7 @@ BEGIN
     FROM meal_items mi
     WHERE mi.meal_id = p_meal_id;
 
-    -- Return template with items
+    -- Return template with items (using food_name)
     SELECT jsonb_build_object(
         'id', t.id,
         'name', t.name,
@@ -349,63 +350,8 @@ $$;
 COMMENT ON FUNCTION create_template_from_meal IS 'Creates a reusable template from an existing meal';
 
 -- =====================================================
--- SEARCH COMMON FOODS (Fuzzy Search)
+-- RESTORE: get_nutrition_trends (Original from 002)
 -- =====================================================
--- Full-text search on common foods with similarity ranking
--- Requires pg_trgm extension (created in 003_indexes.up.sql)
-CREATE OR REPLACE FUNCTION search_common_foods(
-    p_query TEXT,
-    p_limit INTEGER DEFAULT 20
-)
-RETURNS TABLE (
-    id UUID,
-    name TEXT,
-    category TEXT,
-    serving_size DECIMAL,
-    serving_unit TEXT,
-    calories DECIMAL,
-    protein DECIMAL,
-    carbs DECIMAL,
-    fat DECIMAL,
-    fiber DECIMAL,
-    sugar DECIMAL,
-    sodium DECIMAL,
-    verified BOOLEAN,
-    similarity REAL
-)
-LANGUAGE plpgsql
-SECURITY DEFINER
-AS $$
-BEGIN
-    RETURN QUERY
-    SELECT
-        cf.id,
-        cf.name,
-        cf.category,
-        cf.serving_size,
-        cf.serving_unit,
-        cf.calories,
-        cf.protein,
-        cf.carbs,
-        cf.fat,
-        cf.fiber,
-        cf.sugar,
-        cf.sodium,
-        cf.verified,
-        similarity(cf.name, p_query) AS sim
-    FROM common_foods cf
-    WHERE cf.name % p_query  -- Uses trigram similarity operator
-    ORDER BY sim DESC, cf.verified DESC, cf.name
-    LIMIT p_limit;
-END;
-$$;
-
-COMMENT ON FUNCTION search_common_foods IS 'Fuzzy search for common foods using trigram similarity';
-
--- =====================================================
--- GET NUTRITION TRENDS (Analytics)
--- =====================================================
--- Returns daily nutrition trends over a date range
 CREATE OR REPLACE FUNCTION get_nutrition_trends(
     p_user_id UUID,
     p_start_date DATE,
@@ -438,7 +384,7 @@ BEGIN
         RAISE EXCEPTION 'Date range cannot exceed 365 days';
     END IF;
 
-    -- Generate daily totals
+    -- Generate daily totals (using meal_time)
     SELECT jsonb_agg(
         jsonb_build_object(
             'date', day_data.day,
@@ -453,17 +399,16 @@ BEGIN
     )
     INTO v_result
     FROM (
-        -- NOTE: We use pre-calculated meals.total_* columns which are maintained by database triggers.
-        -- This is the SINGLE source of truth - DO NOT manually SUM from meal_items.
         SELECT
             DATE(m.meal_time AT TIME ZONE p_timezone) AS day,
-            ROUND(SUM(m.total_calories)::NUMERIC, 1) AS calories,
-            ROUND(SUM(m.total_protein_g)::NUMERIC, 1) AS protein,
-            ROUND(SUM(m.total_carbs_g)::NUMERIC, 1) AS carbs,
-            ROUND(SUM(m.total_fat_g)::NUMERIC, 1) AS fat,
-            ROUND(SUM(m.total_fiber_g)::NUMERIC, 1) AS fiber,
-            COUNT(m.id) AS meal_count
+            ROUND(SUM(mi.calories)::NUMERIC, 1) AS calories,
+            ROUND(SUM(mi.protein)::NUMERIC, 1) AS protein,
+            ROUND(SUM(mi.carbs)::NUMERIC, 1) AS carbs,
+            ROUND(SUM(mi.fat)::NUMERIC, 1) AS fat,
+            ROUND(SUM(mi.fiber)::NUMERIC, 1) AS fiber,
+            COUNT(DISTINCT m.id) AS meal_count
         FROM meals m
+        JOIN meal_items mi ON mi.meal_id = m.id
         WHERE m.user_id = p_user_id
             AND DATE(m.meal_time AT TIME ZONE p_timezone) >= p_start_date
             AND DATE(m.meal_time AT TIME ZONE p_timezone) <= p_end_date
@@ -479,9 +424,19 @@ COMMENT ON FUNCTION get_nutrition_trends IS 'Returns daily nutrition totals over
 -- =====================================================
 -- GRANT EXECUTE PERMISSIONS
 -- =====================================================
--- Allow authenticated users to execute these functions
 GRANT EXECUTE ON FUNCTION create_meal_with_items TO authenticated;
 GRANT EXECUTE ON FUNCTION get_daily_nutrition TO authenticated;
 GRANT EXECUTE ON FUNCTION create_template_from_meal TO authenticated;
-GRANT EXECUTE ON FUNCTION search_common_foods TO authenticated;
 GRANT EXECUTE ON FUNCTION get_nutrition_trends TO authenticated;
+
+COMMIT;
+
+-- =====================================================
+-- ROLLBACK NOTES
+-- =====================================================
+-- This rollback assumes migration 012 was also rolled back.
+-- If migration 012 is still active, these functions will fail
+-- because they reference columns (meal_time, name, food_name)
+-- that no longer exist in the database.
+--
+-- Always rollback migrations in reverse order (013, then 012).

@@ -26,12 +26,14 @@ func (r *repository) GetMealSuggestions(ctx context.Context, userID uuid.UUID, m
 	}
 
 	// Query meals from last 30 days at similar times (±1 hour)
+	// NOTE: meal_items columns are 'protein', 'carbs', 'fat', 'fiber' (NO _g suffix)
+	// Only meals.total_* columns have the _g suffix
 	query := `
 		WITH meal_descriptions AS (
 			SELECT
 				LOWER(TRIM(mi.name)) as normalized_description,
 				AVG(mi.calories) as avg_calories,
-				AVG(mi.protein_g) as avg_protein,
+				AVG(mi.protein) as avg_protein,
 				COUNT(*) as frequency,
 				MAX(m.consumed_at) as last_consumed_at
 			FROM meals m

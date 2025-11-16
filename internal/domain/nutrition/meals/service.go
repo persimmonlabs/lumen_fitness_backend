@@ -9,6 +9,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
+	"github.com/pradord/lumen_final/backend/internal/domain/nutrition/constants"
 )
 
 // Service defines the business logic interface for meals
@@ -159,8 +161,9 @@ func (s *service) ParseMeal(ctx context.Context, userID uuid.UUID, req *ParseMea
 		)
 	}
 
-	// Calculate totals
-	totals := s.calculateTotals(items)
+	// NOTE: Totals are calculated by database triggers (migration 012)
+	// We calculate here only for API response preview before DB persistence
+	totals := s.calculateTotalsForPreview(items)
 
 	// Build response
 	response := &ParseMealResponse{}
@@ -199,29 +202,23 @@ func (s *service) ConfirmMeal(ctx context.Context, userID uuid.UUID, req *Confir
 		return nil, fmt.Errorf("at least one item is required")
 	}
 
-	// Validate macros
+	// Validate macros using constants package for item-level validation
 	if err := s.validateMacros(req.Items); err != nil {
 		return nil, err
 	}
 
-	// Calculate totals
-	totals := s.calculateTotalsFromDraft(req.Items)
-
-	// Create meal entity
+	// NOTE: Database triggers (migration 012) automatically calculate totals
+	// DO NOT set total_* fields - they are calculated from meal_items
 	meal := &Meal{
-		ID:            uuid.New(),
-		UserID:        userID,
-		MealType:      req.MealType,
-		ConsumedAt:    req.ConsumedAt,
-		Photos:        req.Photos,
-		Notes:         req.Notes,
-		TotalCalories: totals.Calories,
-		TotalProteinG: totals.ProteinG,
-		TotalCarbsG:   totals.CarbsG,
-		TotalFatG:     totals.FatG,
-		TotalFiberG:   totals.FiberG,
-		CreatedAt:     time.Now().UTC(),
-		UpdatedAt:     time.Now().UTC(),
+		ID:         uuid.New(),
+		UserID:     userID,
+		MealType:   req.MealType,
+		ConsumedAt: req.ConsumedAt,
+		Photos:     req.Photos,
+		Notes:      req.Notes,
+		// Total nutrition fields intentionally omitted - database triggers handle this
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
 	}
 
 	// Convert draft items to meal items
@@ -301,27 +298,21 @@ func (s *service) UpdateMeal(ctx context.Context, userID, mealID uuid.UUID, req 
 		return nil, fmt.Errorf("cannot log meals in the future")
 	}
 
-	// Validate macros
+	// Validate macros using constants package for item-level validation
 	if err := s.validateMacros(req.Items); err != nil {
 		return nil, err
 	}
 
-	// Calculate totals
-	totals := s.calculateTotalsFromDraft(req.Items)
-
-	// Create updated meal
+	// NOTE: Database triggers (migration 012) automatically calculate totals
+	// DO NOT set total_* fields - they are calculated from meal_items
 	meal := &Meal{
-		ID:            mealID,
-		UserID:        userID,
-		MealType:      req.MealType,
-		ConsumedAt:    req.ConsumedAt,
-		Photos:        req.Photos,
-		Notes:         req.Notes,
-		TotalCalories: totals.Calories,
-		TotalProteinG: totals.ProteinG,
-		TotalCarbsG:   totals.CarbsG,
-		TotalFatG:     totals.FatG,
-		TotalFiberG:   totals.FiberG,
+		ID:         mealID,
+		UserID:     userID,
+		MealType:   req.MealType,
+		ConsumedAt: req.ConsumedAt,
+		Photos:     req.Photos,
+		Notes:      req.Notes,
+		// Total nutrition fields intentionally omitted - database triggers handle this
 	}
 
 	// Convert to meal items
@@ -400,7 +391,11 @@ func (s *service) generateCacheKey(description string, photos []string) string {
 	return fmt.Sprintf("meal:parse:hash:%x", hash)
 }
 
-func (s *service) calculateTotals(items []DraftMealItem) NutritionTotals {
+// calculateTotalsForPreview calculates nutrition totals for API response previews.
+// NOTE: This is ONLY for preview purposes before database persistence.
+// Once data is saved, database triggers (migration 012) are the SINGLE source of truth.
+// DO NOT use this function to set meal.total_* fields - let the database handle it.
+func (s *service) calculateTotalsForPreview(items []DraftMealItem) NutritionTotals {
 	var totals NutritionTotals
 	for _, item := range items {
 		totals.Calories += item.Calories
@@ -412,22 +407,17 @@ func (s *service) calculateTotals(items []DraftMealItem) NutritionTotals {
 	return totals
 }
 
-func (s *service) calculateTotalsFromDraft(items []DraftMealItem) NutritionTotals {
-	return s.calculateTotals(items)
-}
-
+// validateMacros validates item-level macronutrient consistency using constants package.
+// Uses ValidateMacroCalories from constants package to ensure calories match macros within tolerance.
+// This validation is performed at the ITEM level only - meal totals are calculated by database triggers.
 func (s *service) validateMacros(items []DraftMealItem) error {
 	for _, item := range items {
-		// Calculate expected calories from macros
-		expectedCals := (item.ProteinG * 4) + (item.CarbsG * 4) + (item.FatG * 9)
-
-		// Allow 10% tolerance
-		lowerBound := expectedCals * 0.9
-		upperBound := expectedCals * 1.1
-
-		if item.Calories < lowerBound || item.Calories > upperBound {
-			return fmt.Errorf("macro validation failed for %s: calories %.1f not within ±10%% of calculated %.1f",
-				item.Name, item.Calories, expectedCals)
+		// Use constants package for validation - single source of truth for macro coefficients
+		// NOTE: This validates ITEM data only, NOT meal totals (database triggers handle meal totals)
+		if !constants.ValidateMacroCalories(item.Calories, item.ProteinG, item.CarbsG, item.FatG) {
+			expectedCals := constants.CalculateMacroCalories(item.ProteinG, item.CarbsG, item.FatG)
+			return fmt.Errorf("macro validation failed for %s: calories %.1f not within ±%.0f%% of calculated %.1f",
+				item.Name, item.Calories, constants.MacroCalorieTolerancePercent*100, expectedCals)
 		}
 	}
 	return nil

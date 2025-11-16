@@ -39,6 +39,8 @@ func NewService(repo Repository, weightRepo weight.Repository, goalsRepo goals.R
 
 // GetDailyAnalytics retrieves daily nutrition with goal comparison
 func (s *service) GetDailyAnalytics(ctx context.Context, userID string, date time.Time, timezone string) (*DailyAnalyticsResponse, error) {
+	// NOTE: Repository uses database-calculated totals from meals.total_* columns
+	// We trust these values completely - they are maintained by database triggers
 	dailyTotals, err := s.repo.GetDailyNutrition(ctx, userID, date, timezone)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get daily nutrition: %w", err)

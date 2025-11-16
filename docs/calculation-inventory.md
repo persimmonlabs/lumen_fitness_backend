@@ -299,13 +299,18 @@ const totals: MealTotals = items.reduce(
 ### Location 11: SQL RPC Functions - `migrations/002_rpc_functions.up.sql`
 
 **Purpose**: Database-side nutrition aggregation
-**Functions**: Multiple RPC functions use SUM aggregates
+**Functions**: Multiple RPC functions use pre-calculated totals
 
-**Formulas**:
+**OPTIMIZED**: These functions now use `meals.total_*` columns directly instead of SUM from meal_items
+**Database triggers ensure meals.total_* columns are ALWAYS correct**
 
-**Line 114** (get_daily_nutrition):
+**Example - get_daily_nutrition (OPTIMIZED)**:
 ```sql
+-- OLD (manual SUM):
 'protein', COALESCE(SUM(mi.protein), 0)
+
+-- NEW (use pre-calculated totals):
+'protein', ROUND(SUM(m.total_protein_g)::NUMERIC, 1)
 ```
 
 **Line 177** (get_meal_by_id):

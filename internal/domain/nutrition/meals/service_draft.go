@@ -180,16 +180,15 @@ func (s *service) GetDraftStatus(ctx context.Context, userID, draftID uuid.UUID)
 		}
 		response.Items = draftItems
 
-		// Calculate totals
-		totals := &NutritionTotals{}
-		for _, item := range items {
-			totals.Calories += item.Calories
-			totals.ProteinG += item.ProteinG
-			totals.CarbsG += item.CarbsG
-			totals.FatG += item.FatG
-			totals.FiberG += item.FiberG
+		// NOTE: Database triggers (migration 012) calculate meal totals automatically
+		// Use meal.Total* fields which are already calculated by database
+		response.Total = &NutritionTotals{
+			Calories: meal.TotalCalories,
+			ProteinG: meal.TotalProteinG,
+			CarbsG:   meal.TotalCarbsG,
+			FatG:     meal.TotalFatG,
+			FiberG:   meal.TotalFiberG,
 		}
-		response.Total = totals
 	}
 
 	// Include error if status is error

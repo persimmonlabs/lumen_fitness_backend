@@ -75,6 +75,22 @@ func (m *MockService) CopyMeal(ctx context.Context, userID, mealID uuid.UUID, re
 	return nil, nil
 }
 
+func (m *MockService) EstimateMeal(ctx context.Context, userID uuid.UUID, req *EstimateMealRequest) (*EstimateMealResponse, error) {
+	return nil, nil
+}
+
+func (m *MockService) ParseVoice(ctx context.Context, userID uuid.UUID, audioData []byte, contentType string, mealType MealType, consumedAt time.Time, idempotencyKey string) (*ParseMealResponse, error) {
+	return nil, nil
+}
+
+func (m *MockService) GetDraftStatus(ctx context.Context, userID, draftID uuid.UUID) (*DraftStatusResponse, error) {
+	return nil, nil
+}
+
+func (m *MockService) GetMealSuggestions(ctx context.Context, userID uuid.UUID, mealType MealType) (*MealSuggestionsResponse, error) {
+	return nil, nil
+}
+
 func TestParseMealHandler_Success(t *testing.T) {
 	userID := uuid.New()
 	mockService := &MockService{

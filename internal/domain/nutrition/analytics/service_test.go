@@ -45,7 +45,9 @@ func (m *MockRepository) GetLoggingStreak(ctx context.Context, userID string, en
 
 func TestGetDailyAnalytics(t *testing.T) {
 	mockRepo := new(MockRepository)
-	svc := NewService(mockRepo)
+	mockWeightRepo := &mockWeightRepository{}
+	mockGoalsRepo := &mockGoalsRepositoryAnalytics{}
+	svc := NewService(mockRepo, mockWeightRepo, mockGoalsRepo)
 
 	userID := "user-123"
 	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
@@ -87,7 +89,9 @@ func TestGetDailyAnalytics(t *testing.T) {
 
 func TestGetWeeklyTrends(t *testing.T) {
 	mockRepo := new(MockRepository)
-	svc := NewService(mockRepo)
+	mockWeightRepo := &mockWeightRepository{}
+	mockGoalsRepo := &mockGoalsRepositoryAnalytics{}
+	svc := NewService(mockRepo, mockWeightRepo, mockGoalsRepo)
 
 	userID := "user-123"
 	startDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
@@ -132,7 +136,9 @@ func TestGetWeeklyTrends(t *testing.T) {
 
 func TestGetMacroDistribution(t *testing.T) {
 	mockRepo := new(MockRepository)
-	svc := NewService(mockRepo)
+	mockWeightRepo := &mockWeightRepository{}
+	mockGoalsRepo := &mockGoalsRepositoryAnalytics{}
+	svc := NewService(mockRepo, mockWeightRepo, mockGoalsRepo)
 
 	userID := "user-123"
 	date := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
@@ -167,7 +173,9 @@ func TestGetMacroDistribution(t *testing.T) {
 
 func TestGetDateRangeStats(t *testing.T) {
 	mockRepo := new(MockRepository)
-	svc := NewService(mockRepo)
+	mockWeightRepo := &mockWeightRepository{}
+	mockGoalsRepo := &mockGoalsRepositoryAnalytics{}
+	svc := NewService(mockRepo, mockWeightRepo, mockGoalsRepo)
 
 	userID := "user-123"
 	startDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
@@ -198,7 +206,9 @@ func TestGetDateRangeStats(t *testing.T) {
 
 func TestGetNutritionInsights(t *testing.T) {
 	mockRepo := new(MockRepository)
-	svc := NewService(mockRepo)
+	mockWeightRepo := &mockWeightRepository{}
+	mockGoalsRepo := &mockGoalsRepositoryAnalytics{}
+	svc := NewService(mockRepo, mockWeightRepo, mockGoalsRepo)
 
 	userID := "user-123"
 	startDate := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)

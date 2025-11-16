@@ -12,6 +12,7 @@ import (
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // PostgreSQL driver
+	storage_go "github.com/supabase-community/storage-go"
 
 	"github.com/pradord/lumen_final/backend/internal/config"
 	"github.com/pradord/lumen_final/backend/internal/server"
@@ -92,9 +93,25 @@ func run() error {
 		log.Warn().Msg("No database connection string provided - running in stub mode")
 	}
 
-	// 6. Initialize nutrition dependencies
+	// 6. Initialize Supabase Storage client for media uploads
+	var storageClient *storage_go.Client
+	if cfg.Features.EnableStorage && cfg.Supabase.URL != "" && cfg.Supabase.ServiceKey != "" {
+		storageClient = storage_go.NewClient(cfg.Supabase.URL+"/storage/v1", cfg.Supabase.ServiceKey, nil)
+		log.Info().
+			Str("url", cfg.Supabase.URL+"/storage/v1").
+			Str("bucket", cfg.Supabase.StorageBucket).
+			Msg("Supabase Storage client initialized")
+	} else {
+		log.Warn().
+			Bool("storage_enabled", cfg.Features.EnableStorage).
+			Bool("url_configured", cfg.Supabase.URL != "").
+			Bool("key_configured", cfg.Supabase.ServiceKey != "").
+			Msg("Supabase Storage client not initialized - media service will use mock mode")
+	}
+
+	// 7. Initialize nutrition dependencies
 	slogLogger := slog.Default()
-	nutritionDeps, err := server.NewNutritionDependencies(cfg, db, slogLogger)
+	nutritionDeps, err := server.NewNutritionDependencies(cfg, db, slogLogger, storageClient)
 	if err != nil {
 		return fmt.Errorf("failed to initialize nutrition dependencies: %w", err)
 	}
@@ -106,9 +123,12 @@ func run() error {
 		Bool("templates_enabled", nutritionDeps.TemplatesHandler != nil).
 		Bool("analytics_enabled", nutritionDeps.AnalyticsHandler != nil).
 		Bool("goals_enabled", nutritionDeps.GoalsHandler != nil).
+		Bool("user_enabled", nutritionDeps.UserHandler != nil).
+		Bool("media_enabled", nutritionDeps.MediaHandler != nil).
+		Bool("storage_connected", nutritionDeps.StorageClient != nil).
 		Msg("Nutrition domain initialized")
 
-	// 7. Setup HTTP server with all handlers
+	// 8. Setup HTTP server with all handlers
 	srv := server.NewServerWithHandlers(
 		cfg,
 		log.WithComponent("server"),
@@ -118,7 +138,11 @@ func run() error {
 		nutritionDeps.TemplatesHandler,
 		nutritionDeps.AnalyticsHandler,
 		nutritionDeps.GoalsHandler,
+		nutritionDeps.UserHandler,
 	)
+
+	// Set nutrition dependencies (new service handlers)
+	srv.SetNutritionDependencies(nutritionDeps)
 
 	// Create HTTP server
 	httpServer := &http.Server{
@@ -129,7 +153,7 @@ func run() error {
 		IdleTimeout:  cfg.Server.IdleTimeout,
 	}
 
-	// 7. Start HTTP server in a goroutine
+	// 9. Start HTTP server in a goroutine
 	serverErrors := make(chan error, 1)
 	go func() {
 		log.Info().
@@ -138,11 +162,11 @@ func run() error {
 		serverErrors <- httpServer.ListenAndServe()
 	}()
 
-	// 8. Wait for shutdown signal
+	// 10. Wait for shutdown signal
 	shutdown := make(chan os.Signal, 1)
 	signal.Notify(shutdown, os.Interrupt, syscall.SIGTERM, syscall.SIGINT)
 
-	// 9. Block until shutdown signal or server error
+	// 11. Block until shutdown signal or server error
 	select {
 	case err := <-serverErrors:
 		if err != nil && err != http.ErrServerClosed {
@@ -154,7 +178,7 @@ func run() error {
 			Str("signal", sig.String()).
 			Msg("Shutdown signal received, starting graceful shutdown")
 
-		// 10. Graceful shutdown with timeout (default 30 seconds)
+		// 12. Graceful shutdown with timeout (default 30 seconds)
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		defer cancel()
 

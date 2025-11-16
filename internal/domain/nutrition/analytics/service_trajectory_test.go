@@ -51,29 +51,27 @@ func (m *mockWeightRepository) CheckDuplicateDate(ctx context.Context, userID uu
 	return false, nil
 }
 
-// mockGoalsRepository implements goals.Repository for testing
-type mockGoalsRepository struct {
-	goal *goals.Goal
-	err  error
+// mockGoalsRepositoryTrajectory implements a minimal goals repository for trajectory testing
+type mockGoalsRepositoryTrajectory struct {
+	mockGoalsRepositoryAnalytics
+	targetWeight float64
+	targetDate   time.Time
+	weeklyGoal   float64
+	err          error
 }
 
-func (m *mockGoalsRepository) GetByUserID(ctx context.Context, userID uuid.UUID) (*goals.Goal, error) {
+func (m *mockGoalsRepositoryTrajectory) GetByUserID(ctx context.Context, userID uuid.UUID) (*goals.UserGoals, error) {
 	if m.err != nil {
 		return nil, m.err
 	}
-	return m.goal, nil
-}
-
-func (m *mockGoalsRepository) Create(ctx context.Context, goal *goals.Goal) error {
-	return nil
-}
-
-func (m *mockGoalsRepository) Update(ctx context.Context, goal *goals.Goal) error {
-	return nil
-}
-
-func (m *mockGoalsRepository) Delete(ctx context.Context, userID uuid.UUID) error {
-	return nil
+	// Return a UserGoals with the target weight info
+	return &goals.UserGoals{
+		ID:           0,
+		UserID:       0, // int64 user ID not used in trajectory calculation
+		TargetWeight: m.targetWeight,
+		CreatedAt:    time.Now(),
+		UpdatedAt:    time.Now(),
+	}, nil
 }
 
 func TestCalculateTrajectory_Success(t *testing.T) {
@@ -96,14 +94,10 @@ func TestCalculateTrajectory_Success(t *testing.T) {
 
 	// Setup repositories
 	weightRepo := &mockWeightRepository{entries: entries}
-	goalsRepo := &mockGoalsRepository{
-		goal: &goals.Goal{
-			ID:           uuid.New(),
-			UserID:       userID,
-			TargetWeight: 75.0,
-			TargetDate:   now.AddDate(0, 0, 30),
-			WeeklyGoal:   -0.5,
-		},
+	goalsRepo := &mockGoalsRepositoryTrajectory{
+		targetWeight: 75.0,
+		targetDate:   now.AddDate(0, 0, 30),
+		weeklyGoal:   -0.5,
 	}
 
 	// Create service
@@ -165,13 +159,10 @@ func TestCalculateTrajectory_InsufficientData(t *testing.T) {
 
 	// Setup repositories
 	weightRepo := &mockWeightRepository{entries: entries}
-	goalsRepo := &mockGoalsRepository{
-		goal: &goals.Goal{
-			ID:           uuid.New(),
-			UserID:       userID,
-			TargetWeight: 75.0,
-			TargetDate:   now.AddDate(0, 0, 30),
-		},
+	goalsRepo := &mockGoalsRepositoryTrajectory{
+		targetWeight: 75.0,
+		targetDate:   now.AddDate(0, 0, 30),
+		weeklyGoal:   0,
 	}
 
 	// Create service

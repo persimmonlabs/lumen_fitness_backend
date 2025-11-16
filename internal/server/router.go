@@ -15,7 +15,8 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 
-	"github.com/pradord/lumen_final/backend/internal/server/handlers"
+	"github.com/pradord/lumen_final/backend/internal/handlers"
+	serverhandlers "github.com/pradord/lumen_final/backend/internal/server/handlers"
 	custommw "github.com/pradord/lumen_final/backend/internal/server/middleware"
 	"github.com/pradord/lumen_final/backend/internal/supabase"
 )
@@ -40,12 +41,14 @@ type HandlerDependencies struct {
 	TemplatesHandler interface{ RegisterRoutes(chi.Router) }
 	AnalyticsHandler interface{ RegisterRoutes(chi.Router) }
 	GoalsHandler     interface{ RegisterRoutes(chi.Router) }
+	UserHandler      interface{ RegisterRoutes(chi.Router) }
 
 	// New service handlers (optional - may be nil if services not initialized)
-	// MediaHandler        *handlers.MediaHandler
-	// VoiceHandler        *handlers.VoiceHandler
-	// TrajectoryHandler   *handlers.TrajectoryHandler
-	// SuggestionsHandler  *handlers.SuggestionsHandler
+	MediaHandler        *handlers.MediaHandler
+	VoiceHandler        *handlers.VoiceHandler
+	TrajectoryHandler   *handlers.TrajectoryHandler
+	SuggestionsHandler  *handlers.SuggestionsHandler
+	CommonFoodsHandler  *handlers.CommonFoodsHandler
 }
 
 // Router encapsulates the HTTP router and its configuration.
@@ -125,7 +128,7 @@ func (r *Router) setupMiddleware() {
 
 // setupRoutes configures all API routes organized into groups.
 func (r *Router) setupRoutes() {
-	healthHandler := handlers.NewHealthHandler(r.deps.Logger, r.deps.Supabase, r.deps.Version)
+	healthHandler := serverhandlers.NewHealthHandler(r.deps.Logger, r.deps.Supabase, r.deps.Version)
 
 	// Public routes (no authentication required)
 	r.Group(func(r chi.Router) {
@@ -144,7 +147,7 @@ func (r *Router) setupRoutes() {
 		})
 
 		// Example feature: Items (will be removed later)
-		itemHandler := handlers.NewItemHandler(r.deps.Logger, r.deps.Supabase)
+		itemHandler := serverhandlers.NewItemHandler(r.deps.Logger, r.deps.Supabase)
 		apiRouter.Route("/items", func(apiRouter chi.Router) {
 			apiRouter.Post("/", itemHandler.Create)
 			apiRouter.Get("/", itemHandler.List)
@@ -175,28 +178,35 @@ func (r *Router) setupRoutes() {
 			if r.deps.GoalsHandler != nil {
 				r.deps.GoalsHandler.RegisterRoutes(protectedRouter)
 			}
+			if r.deps.UserHandler != nil {
+				r.deps.UserHandler.RegisterRoutes(protectedRouter)
+			}
 
-			// New service routes (disabled until handlers are implemented)
-			// TODO: Uncomment when handlers are implemented
-			// if r.deps.MediaHandler != nil {
-			// 	protectedRouter.Post("/media/upload", r.deps.MediaHandler.Upload)
-			// 	protectedRouter.Delete("/media", r.deps.MediaHandler.Delete)
-			// 	protectedRouter.Get("/media/url", r.deps.MediaHandler.GetURL)
-			// }
+			// New service routes
+			if r.deps.MediaHandler != nil {
+				protectedRouter.Post("/media/upload", r.deps.MediaHandler.Upload)
+				protectedRouter.Delete("/media", r.deps.MediaHandler.Delete)
+				protectedRouter.Get("/media/url", r.deps.MediaHandler.GetURL)
+			}
 
-			// if r.deps.VoiceHandler != nil {
-			// 	protectedRouter.Post("/voice/transcribe", r.deps.VoiceHandler.Transcribe)
-			// 	protectedRouter.Get("/voice/formats", r.deps.VoiceHandler.GetSupportedFormats)
-			// }
+			if r.deps.VoiceHandler != nil {
+				protectedRouter.Post("/voice/transcribe", r.deps.VoiceHandler.Transcribe)
+				protectedRouter.Get("/voice/formats", r.deps.VoiceHandler.GetSupportedFormats)
+			}
 
-			// if r.deps.TrajectoryHandler != nil {
-			// 	protectedRouter.Post("/trajectory/predict", r.deps.TrajectoryHandler.Calculate)
-			// }
+			if r.deps.TrajectoryHandler != nil {
+				protectedRouter.Post("/trajectory/predict", r.deps.TrajectoryHandler.Calculate)
+			}
 
-			// if r.deps.SuggestionsHandler != nil {
-			// 	protectedRouter.Post("/suggestions/generate", r.deps.SuggestionsHandler.Generate)
-			// 	protectedRouter.Get("/suggestions/quick", r.deps.SuggestionsHandler.QuickSuggestions)
-			// }
+			if r.deps.SuggestionsHandler != nil {
+				protectedRouter.Post("/suggestions/generate", r.deps.SuggestionsHandler.Generate)
+				protectedRouter.Get("/suggestions/quick", r.deps.SuggestionsHandler.QuickSuggestions)
+			}
+
+			// Common foods search endpoint
+			if r.deps.CommonFoodsHandler != nil {
+				protectedRouter.Get("/common-foods/search", r.deps.CommonFoodsHandler.Search)
+			}
 		})
 	})
 
@@ -257,10 +267,12 @@ func (r *Router) apiInfo(w http.ResponseWriter, req *http.Request) {
 			"templates":    "/api/v1/templates",
 			"analytics":    "/api/v1/analytics",
 			"goals":        "/api/v1/goals",
+			"user":         "/api/v1/user",
 			"media":        "/api/v1/media",
 			"voice":        "/api/v1/voice",
 			"trajectory":   "/api/v1/trajectory",
 			"suggestions":  "/api/v1/suggestions",
+			"common-foods": "/api/v1/common-foods",
 		},
 	}
 
@@ -320,6 +332,31 @@ func (r *Router) listRoutes(w http.ResponseWriter, req *http.Request) {
 				{"method": "GET", "path": "/api/v1/goals/daily", "description": "Get daily goals"},
 				{"method": "PUT", "path": "/api/v1/goals/daily/{day}", "description": "Set day-specific goal"},
 				{"method": "DELETE", "path": "/api/v1/goals/daily/{day}", "description": "Delete day-specific goal"},
+			},
+			"user": []map[string]string{
+				{"method": "GET", "path": "/api/v1/user/profile", "description": "Get current user profile"},
+				{"method": "PUT", "path": "/api/v1/user/profile", "description": "Update user profile"},
+				{"method": "GET", "path": "/api/v1/user/settings", "description": "Get user settings"},
+				{"method": "PUT", "path": "/api/v1/user/settings", "description": "Update user settings"},
+			},
+			"media": []map[string]string{
+				{"method": "POST", "path": "/api/v1/media/upload", "description": "Upload media file"},
+				{"method": "DELETE", "path": "/api/v1/media", "description": "Delete media file"},
+				{"method": "GET", "path": "/api/v1/media/url", "description": "Get media file URL"},
+			},
+			"voice": []map[string]string{
+				{"method": "POST", "path": "/api/v1/voice/transcribe", "description": "Transcribe voice to text"},
+				{"method": "GET", "path": "/api/v1/voice/formats", "description": "Get supported audio formats"},
+			},
+			"trajectory": []map[string]string{
+				{"method": "POST", "path": "/api/v1/trajectory/predict", "description": "Calculate weight trajectory prediction"},
+			},
+			"suggestions": []map[string]string{
+				{"method": "POST", "path": "/api/v1/suggestions/generate", "description": "Generate meal suggestions"},
+				{"method": "GET", "path": "/api/v1/suggestions/quick", "description": "Get quick meal suggestions"},
+			},
+			"common-foods": []map[string]string{
+				{"method": "GET", "path": "/api/v1/common-foods/search", "description": "Search common foods database"},
 			},
 		},
 	}

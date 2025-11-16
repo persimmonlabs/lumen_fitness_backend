@@ -13,59 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// Mock services for testing
-type MockAICoordinator struct {
-	ParseMealFunc func(ctx context.Context, description string, photos []string) ([]DraftMealItem, float64, float64, error)
-}
-
-func (m *MockAICoordinator) ParseMeal(ctx context.Context, description string, photos []string) ([]DraftMealItem, float64, float64, error) {
-	if m.ParseMealFunc != nil {
-		return m.ParseMealFunc(ctx, description, photos)
-	}
-	return nil, 0, 0, nil
-}
-
-type MockCache struct {
-	GetFunc func(ctx context.Context, key string) (interface{}, error)
-	SetFunc func(ctx context.Context, key string, value interface{}, ttl time.Duration) error
-}
-
-func (m *MockCache) Get(ctx context.Context, key string) (interface{}, error) {
-	if m.GetFunc != nil {
-		return m.GetFunc(ctx, key)
-	}
-	return nil, errors.New("not found")
-}
-
-func (m *MockCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
-	if m.SetFunc != nil {
-		return m.SetFunc(ctx, key, value, ttl)
-	}
-	return nil
-}
-
-type MockCostTracker struct {
-	TrackCostFunc func(ctx context.Context, userID uuid.UUID, cost float64) error
-}
-
-func (m *MockCostTracker) TrackCost(ctx context.Context, userID uuid.UUID, cost float64) error {
-	if m.TrackCostFunc != nil {
-		return m.TrackCostFunc(ctx, userID, cost)
-	}
-	return nil
-}
-
-type MockPhotoStorage struct {
-	ValidatePhotosFunc func(ctx context.Context, photoIDs []string) error
-}
-
-func (m *MockPhotoStorage) ValidatePhotos(ctx context.Context, photoIDs []string) error {
-	if m.ValidatePhotosFunc != nil {
-		return m.ValidatePhotosFunc(ctx, photoIDs)
-	}
-	return nil
-}
-
 func TestParseMeal_Success(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()

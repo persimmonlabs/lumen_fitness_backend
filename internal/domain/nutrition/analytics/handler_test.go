@@ -18,6 +18,7 @@ type mockService struct {
 	getWeeklyTrendsFunc      func(ctx context.Context, userID string, startDate time.Time, timezone string) (*analytics.WeeklyAnalyticsResponse, error)
 	getDateRangeStatsFunc    func(ctx context.Context, userID string, startDate, endDate time.Time, timezone string) (*analytics.TrendsResponse, error)
 	getMacroDistributionFunc func(ctx context.Context, userID string, date time.Time, timezone string) (*analytics.MacroDistribution, error)
+	calculateTrajectoryFunc  func(ctx context.Context, userID string) (*analytics.Trajectory, error)
 }
 
 func (m *mockService) GetDailyAnalytics(ctx context.Context, userID string, date time.Time, timezone string) (*analytics.DailyAnalyticsResponse, error) {
@@ -50,6 +51,13 @@ func (m *mockService) GetMacroDistribution(ctx context.Context, userID string, d
 
 func (m *mockService) GetNutritionInsights(ctx context.Context, userID string, startDate, endDate time.Time, timezone string) (*analytics.NutritionInsights, error) {
 	return &analytics.NutritionInsights{}, nil
+}
+
+func (m *mockService) CalculateTrajectory(ctx context.Context, userID string) (*analytics.Trajectory, error) {
+	if m.calculateTrajectoryFunc != nil {
+		return m.calculateTrajectoryFunc(ctx, userID)
+	}
+	return &analytics.Trajectory{}, nil
 }
 
 // contextWithUserID adds user ID to context for testing

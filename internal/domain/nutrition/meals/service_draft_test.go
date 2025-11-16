@@ -3,8 +3,6 @@ package meals
 import (
 	"context"
 	"errors"
-	"log/slog"
-	"os"
 	"testing"
 	"time"
 
@@ -13,30 +11,23 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// MockRepository is a mock implementation of Repository
-type MockRepository struct {
+// Additional mock methods for draft meal functionality
+type MockRepositoryDraft struct {
+	MockRepository
 	mock.Mock
 }
 
-func (m *MockRepository) CreateMealWithItems(ctx context.Context, userID uuid.UUID, meal *Meal, items []MealItem) (*MealWithItems, error) {
-	args := m.Called(ctx, userID, meal, items)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*MealWithItems), args.Error(1)
-}
-
-func (m *MockRepository) CreateDraftMeal(ctx context.Context, userID uuid.UUID, meal *Meal) (uuid.UUID, error) {
+func (m *MockRepositoryDraft) CreateDraftMeal(ctx context.Context, userID uuid.UUID, meal *Meal) (uuid.UUID, error) {
 	args := m.Called(ctx, userID, meal)
 	return args.Get(0).(uuid.UUID), args.Error(1)
 }
 
-func (m *MockRepository) UpdateDraftStatus(ctx context.Context, draftID uuid.UUID, status DraftStatus, items []MealItem, errMsg *string) error {
+func (m *MockRepositoryDraft) UpdateDraftStatus(ctx context.Context, draftID uuid.UUID, status DraftStatus, items []MealItem, errMsg *string) error {
 	args := m.Called(ctx, draftID, status, items, errMsg)
 	return args.Error(0)
 }
 
-func (m *MockRepository) GetDraftStatus(ctx context.Context, userID, draftID uuid.UUID) (*Meal, []MealItem, error) {
+func (m *MockRepositoryDraft) GetDraftStatus(ctx context.Context, userID, draftID uuid.UUID) (*Meal, []MealItem, error) {
 	args := m.Called(ctx, userID, draftID)
 	if args.Get(0) == nil {
 		return nil, nil, args.Error(2)
@@ -44,95 +35,20 @@ func (m *MockRepository) GetDraftStatus(ctx context.Context, userID, draftID uui
 	return args.Get(0).(*Meal), args.Get(1).([]MealItem), args.Error(2)
 }
 
-func (m *MockRepository) GetMealByID(ctx context.Context, userID, mealID uuid.UUID) (*MealWithItems, error) {
-	args := m.Called(ctx, userID, mealID)
+func (m *MockRepositoryDraft) GetMealSuggestions(ctx context.Context, userID uuid.UUID, mealType MealType) ([]MealSuggestion, error) {
+	args := m.Called(ctx, userID, mealType)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
 	}
-	return args.Get(0).(*MealWithItems), args.Error(1)
+	return args.Get(0).([]MealSuggestion), args.Error(1)
 }
 
-func (m *MockRepository) ListMealsByUser(ctx context.Context, userID uuid.UUID, filters ListMealFilters) ([]MealListItem, int, error) {
-	args := m.Called(ctx, userID, filters)
-	return args.Get(0).([]MealListItem), args.Int(1), args.Error(2)
-}
-
-func (m *MockRepository) UpdateMeal(ctx context.Context, userID uuid.UUID, meal *Meal, items []MealItem) (*MealWithItems, error) {
-	args := m.Called(ctx, userID, meal, items)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*MealWithItems), args.Error(1)
-}
-
-func (m *MockRepository) DeleteMeal(ctx context.Context, userID, mealID uuid.UUID) error {
-	args := m.Called(ctx, userID, mealID)
-	return args.Error(0)
-}
-
-func (m *MockRepository) DuplicateMeal(ctx context.Context, userID, mealID uuid.UUID, consumedAt time.Time, mealType MealType) (*MealWithItems, error) {
-	args := m.Called(ctx, userID, mealID, consumedAt, mealType)
-	if args.Get(0) == nil {
-		return nil, args.Error(1)
-	}
-	return args.Get(0).(*MealWithItems), args.Error(1)
-}
-
-// MockAICoordinator is a mock implementation of AICoordinator
-type MockAICoordinator struct {
-	mock.Mock
-}
-
-func (m *MockAICoordinator) ParseMeal(ctx context.Context, description string, photos []string) ([]DraftMealItem, float64, float64, error) {
-	args := m.Called(ctx, description, photos)
-	if args.Get(0) == nil {
-		return nil, 0, 0, args.Error(3)
-	}
-	return args.Get(0).([]DraftMealItem), args.Get(1).(float64), args.Get(2).(float64), args.Error(3)
-}
-
-// MockCache is a mock implementation of Cache
-type MockCache struct {
-	mock.Mock
-}
-
-func (m *MockCache) Get(ctx context.Context, key string) (interface{}, error) {
-	args := m.Called(ctx, key)
-	return args.Get(0), args.Error(1)
-}
-
-func (m *MockCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
-	args := m.Called(ctx, key, value, ttl)
-	return args.Error(0)
-}
-
-// MockCostTracker is a mock implementation of CostTracker
-type MockCostTracker struct {
-	mock.Mock
-}
-
-func (m *MockCostTracker) TrackCost(ctx context.Context, userID uuid.UUID, cost float64) error {
-	args := m.Called(ctx, userID, cost)
-	return args.Error(0)
-}
-
-// MockPhotoStorage is a mock implementation of PhotoStorage
-type MockPhotoStorage struct {
-	mock.Mock
-}
-
-func (m *MockPhotoStorage) ValidatePhotos(ctx context.Context, photoIDs []string) error {
-	args := m.Called(ctx, photoIDs)
-	return args.Error(0)
-}
-
-func setupTestService() (*service, *MockRepository, *MockAICoordinator, *MockCache) {
-	repo := new(MockRepository)
+func setupTestService() (*service, *MockRepositoryDraft, *MockAICoordinator, *MockCache) {
+	repo := new(MockRepositoryDraft)
 	aiCoordinator := new(MockAICoordinator)
 	cache := new(MockCache)
 	costTracker := new(MockCostTracker)
 	photoStorage := new(MockPhotoStorage)
-	logger := slog.New(slog.NewTextHandler(os.Stdout, nil))
 
 	svc := &service{
 		repo:          repo,
@@ -140,7 +56,7 @@ func setupTestService() (*service, *MockRepository, *MockAICoordinator, *MockCac
 		cache:         cache,
 		costTracker:   costTracker,
 		photoStorage:  photoStorage,
-		logger:        logger,
+		logger:        testLogger,
 	}
 
 	return svc, repo, aiCoordinator, cache

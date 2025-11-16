@@ -8,47 +8,6 @@ import (
 	"github.com/google/uuid"
 )
 
-// MockAIEstimator implements AIEstimator for testing
-type MockAIEstimator struct {
-	EstimateFunc func(description string) (*AIEstimation, error)
-}
-
-func (m *MockAIEstimator) EstimateMeal(description string) (*AIEstimation, error) {
-	if m.EstimateFunc != nil {
-		return m.EstimateFunc(description)
-	}
-	return &AIEstimation{
-		Calories:   500,
-		Protein:    30,
-		Confidence: "medium",
-	}, nil
-}
-
-// MockAITranscriber implements AITranscriber for testing
-type MockAITranscriber struct {
-	TranscribeFunc func(audioData []byte, contentType string) (string, error)
-}
-
-func (m *MockAITranscriber) TranscribeAudio(audioData []byte, contentType string) (string, error) {
-	if m.TranscribeFunc != nil {
-		return m.TranscribeFunc(audioData, contentType)
-	}
-	return "chicken breast with rice and vegetables", nil
-}
-
-// MockAINormalizer implements AINormalizer for testing
-type MockAINormalizer struct {
-	NormalizeFunc func(description string) (string, error)
-}
-
-func (m *MockAINormalizer) NormalizeMealDescription(description string) (string, error) {
-	if m.NormalizeFunc != nil {
-		return m.NormalizeFunc(description)
-	}
-	// Simple mock normalization
-	return "Normalized " + description, nil
-}
-
 // TestEstimateMeal tests the meal estimation service method
 func TestServiceEstimateMeal(t *testing.T) {
 	mockEstimator := &MockAIEstimator{}
@@ -327,52 +286,9 @@ func TestServiceNormalizeMealDescription(t *testing.T) {
 	}
 }
 
-// MockCache implements Cache interface for testing
-type MockCache struct {
-	items map[string]interface{}
-}
-
-func (m *MockCache) Get(ctx context.Context, key string) (interface{}, error) {
-	if val, exists := m.items[key]; exists {
-		return val, nil
-	}
-	return nil, &CacheError{}
-}
-
-func (m *MockCache) Set(ctx context.Context, key string, value interface{}, ttl time.Duration) error {
-	m.items[key] = value
-	return nil
-}
-
 // CacheError for mock
 type CacheError struct{}
 
 func (e *CacheError) Error() string {
 	return "cache miss"
-}
-
-// MockAICoordinator for testing
-type MockAICoordinator struct {
-	ParseMealFunc func(ctx context.Context, description string, photos []string) ([]DraftMealItem, float64, float64, error)
-}
-
-func (m *MockAICoordinator) ParseMeal(ctx context.Context, description string, photos []string) ([]DraftMealItem, float64, float64, error) {
-	if m.ParseMealFunc != nil {
-		return m.ParseMealFunc(ctx, description, photos)
-	}
-	return []DraftMealItem{}, 0.8, 0.0, nil
-}
-
-// MockCostTracker for testing
-type MockCostTracker struct{}
-
-func (m *MockCostTracker) TrackCost(ctx context.Context, userID uuid.UUID, cost float64) error {
-	return nil
-}
-
-// MockPhotoStorage for testing
-type MockPhotoStorage struct{}
-
-func (m *MockPhotoStorage) ValidatePhotos(ctx context.Context, photoIDs []string) error {
-	return nil
 }

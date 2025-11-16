@@ -258,8 +258,3 @@ func TestRepository_DeleteTemplate_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, ErrTemplateNotFound)
 	assert.NoError(t, mock.ExpectationsWereMet())
 }
-
-// Helper function
-func stringPtr(s string) *string {
-	return &s
-}

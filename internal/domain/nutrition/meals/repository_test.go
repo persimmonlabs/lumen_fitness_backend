@@ -10,58 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// MockRepository is a mock implementation of Repository for testing
-type MockRepository struct {
-	CreateMealWithItemsFunc func(ctx context.Context, userID uuid.UUID, meal *Meal, items []MealItem) (*MealWithItems, error)
-	GetMealByIDFunc         func(ctx context.Context, userID, mealID uuid.UUID) (*MealWithItems, error)
-	ListMealsByUserFunc     func(ctx context.Context, userID uuid.UUID, filters ListMealFilters) ([]MealListItem, int, error)
-	UpdateMealFunc          func(ctx context.Context, userID uuid.UUID, meal *Meal, items []MealItem) (*MealWithItems, error)
-	DeleteMealFunc          func(ctx context.Context, userID, mealID uuid.UUID) error
-	DuplicateMealFunc       func(ctx context.Context, userID, mealID uuid.UUID, consumedAt time.Time, mealType MealType) (*MealWithItems, error)
-}
-
-func (m *MockRepository) CreateMealWithItems(ctx context.Context, userID uuid.UUID, meal *Meal, items []MealItem) (*MealWithItems, error) {
-	if m.CreateMealWithItemsFunc != nil {
-		return m.CreateMealWithItemsFunc(ctx, userID, meal, items)
-	}
-	return nil, nil
-}
-
-func (m *MockRepository) GetMealByID(ctx context.Context, userID, mealID uuid.UUID) (*MealWithItems, error) {
-	if m.GetMealByIDFunc != nil {
-		return m.GetMealByIDFunc(ctx, userID, mealID)
-	}
-	return nil, nil
-}
-
-func (m *MockRepository) ListMealsByUser(ctx context.Context, userID uuid.UUID, filters ListMealFilters) ([]MealListItem, int, error) {
-	if m.ListMealsByUserFunc != nil {
-		return m.ListMealsByUserFunc(ctx, userID, filters)
-	}
-	return nil, 0, nil
-}
-
-func (m *MockRepository) UpdateMeal(ctx context.Context, userID uuid.UUID, meal *Meal, items []MealItem) (*MealWithItems, error) {
-	if m.UpdateMealFunc != nil {
-		return m.UpdateMealFunc(ctx, userID, meal, items)
-	}
-	return nil, nil
-}
-
-func (m *MockRepository) DeleteMeal(ctx context.Context, userID, mealID uuid.UUID) error {
-	if m.DeleteMealFunc != nil {
-		return m.DeleteMealFunc(ctx, userID, mealID)
-	}
-	return nil
-}
-
-func (m *MockRepository) DuplicateMeal(ctx context.Context, userID, mealID uuid.UUID, consumedAt time.Time, mealType MealType) (*MealWithItems, error) {
-	if m.DuplicateMealFunc != nil {
-		return m.DuplicateMealFunc(ctx, userID, mealID, consumedAt, mealType)
-	}
-	return nil, nil
-}
-
 func TestCreateMealWithItems(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New()

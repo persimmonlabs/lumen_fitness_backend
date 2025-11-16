@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Helper function
+func stringPtr(s string) *string {
+	return &s
+}
+
 // MockRepository is a mock implementation of Repository
 type MockRepository struct {
 	mock.Mock
@@ -105,7 +110,7 @@ func TestService_CreateTemplate(t *testing.T) {
 		},
 	}
 
-	mockRepo.On("CreateTemplate", mock.Anything, userID, req).Return(expectedTemplate, nil)
+	mockRepo.On("CreateTemplate", context.Background(), userID, req).Return(expectedTemplate, nil)
 
 	result, err := svc.CreateTemplate(context.Background(), userID, req)
 
@@ -211,7 +216,7 @@ func TestService_CreateFromMeal(t *testing.T) {
 		Name:   "Lunch Template",
 	}
 
-	mockRepo.On("CreateFromMeal", mock.Anything, userID, req).Return(expectedTemplate, nil)
+	mockRepo.On("CreateFromMeal", context.Background(), userID, req).Return(expectedTemplate, nil)
 
 	result, err := svc.CreateFromMeal(context.Background(), userID, req)
 
@@ -275,7 +280,7 @@ func TestService_UseTemplate(t *testing.T) {
 		},
 	}
 
-	mockRepo.On("GetTemplateByID", mock.Anything, userID, templateID).Return(template, nil)
+	mockRepo.On("GetTemplateByID", context.Background(), userID, templateID).Return(template, nil)
 
 	// Mock meal creation
 	mock.ExpectExec(`INSERT INTO nutrition.meals`).
@@ -342,7 +347,7 @@ func TestService_GetTemplate(t *testing.T) {
 		Name:   "Test Template",
 	}
 
-	mockRepo.On("GetTemplateByID", mock.Anything, userID, templateID).Return(template, nil)
+	mockRepo.On("GetTemplateByID", context.Background(), userID, templateID).Return(template, nil)
 
 	result, err := svc.GetTemplate(context.Background(), userID, templateID)
 
@@ -361,7 +366,7 @@ func TestService_ListTemplates(t *testing.T) {
 		{ID: uuid.New(), UserID: userID, Name: "Template 2"},
 	}
 
-	mockRepo.On("ListTemplates", mock.Anything, userID, 50, 0).Return(templates, 2, nil)
+	mockRepo.On("ListTemplates", context.Background(), userID, 50, 0).Return(templates, 2, nil)
 
 	result, err := svc.ListTemplates(context.Background(), userID, 0, 0)
 
@@ -388,7 +393,7 @@ func TestService_UpdateTemplate(t *testing.T) {
 		Name:   newName,
 	}
 
-	mockRepo.On("UpdateTemplate", mock.Anything, userID, templateID, req).Return(updatedTemplate, nil)
+	mockRepo.On("UpdateTemplate", context.Background(), userID, templateID, req).Return(updatedTemplate, nil)
 
 	result, err := svc.UpdateTemplate(context.Background(), userID, templateID, req)
 
@@ -437,14 +442,10 @@ func TestService_DeleteTemplate(t *testing.T) {
 	userID := uuid.New()
 	templateID := uuid.New()
 
-	mockRepo.On("DeleteTemplate", mock.Anything, userID, templateID).Return(nil)
+	mockRepo.On("DeleteTemplate", context.Background(), userID, templateID).Return(nil)
 
 	err := svc.DeleteTemplate(context.Background(), userID, templateID)
 
 	assert.NoError(t, err)
 	mockRepo.AssertExpectations(t)
-}
-
-func stringPtr(s string) *string {
-	return &s
 }

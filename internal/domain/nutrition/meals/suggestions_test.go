@@ -22,7 +22,7 @@ func TestGetMealSuggestions_Success(t *testing.T) {
 	repo := NewRepository(sqlxDB)
 
 	userID := uuid.New()
-	queryTime, _ := time.Parse("15:04", "12:30")
+	mealType := MealTypeLunch
 
 	// Expected query (with normalized whitespace for matching)
 	expectedQuery := `WITH meal_descriptions`
@@ -41,7 +41,7 @@ func TestGetMealSuggestions_Success(t *testing.T) {
 		WillReturnRows(rows)
 
 	// Execute
-	suggestions, err := repo.GetMealSuggestions(context.Background(), userID, queryTime)
+	suggestions, err := repo.GetMealSuggestions(context.Background(), userID, mealType)
 
 	// Verify
 	if err != nil {
@@ -83,7 +83,7 @@ func TestGetMealSuggestions_EarlyMorning(t *testing.T) {
 	repo := NewRepository(sqlxDB)
 
 	userID := uuid.New()
-	queryTime, _ := time.Parse("15:04", "00:30") // 12:30 AM
+	mealType := MealTypeBreakfast
 
 	expectedQuery := `WITH meal_descriptions`
 
@@ -97,7 +97,7 @@ func TestGetMealSuggestions_EarlyMorning(t *testing.T) {
 		WillReturnRows(rows)
 
 	// Execute
-	suggestions, err := repo.GetMealSuggestions(context.Background(), userID, queryTime)
+	suggestions, err := repo.GetMealSuggestions(context.Background(), userID, mealType)
 
 	// Verify
 	if err != nil {
@@ -129,7 +129,7 @@ func TestGetMealSuggestions_LateEvening(t *testing.T) {
 	repo := NewRepository(sqlxDB)
 
 	userID := uuid.New()
-	queryTime, _ := time.Parse("15:04", "23:30") // 11:30 PM
+	mealType := MealTypeSnack
 
 	expectedQuery := `WITH meal_descriptions`
 
@@ -143,7 +143,7 @@ func TestGetMealSuggestions_LateEvening(t *testing.T) {
 		WillReturnRows(rows)
 
 	// Execute
-	suggestions, err := repo.GetMealSuggestions(context.Background(), userID, queryTime)
+	suggestions, err := repo.GetMealSuggestions(context.Background(), userID, mealType)
 
 	// Verify
 	if err != nil {
@@ -171,7 +171,7 @@ func TestGetMealSuggestions_NoResults(t *testing.T) {
 	repo := NewRepository(sqlxDB)
 
 	userID := uuid.New()
-	queryTime, _ := time.Parse("15:04", "15:00")
+	mealType := MealTypeDinner
 
 	expectedQuery := `WITH meal_descriptions`
 
@@ -185,7 +185,7 @@ func TestGetMealSuggestions_NoResults(t *testing.T) {
 		WillReturnRows(rows)
 
 	// Execute
-	suggestions, err := repo.GetMealSuggestions(context.Background(), userID, queryTime)
+	suggestions, err := repo.GetMealSuggestions(context.Background(), userID, mealType)
 
 	// Verify
 	if err != nil {
@@ -218,7 +218,7 @@ func TestGetMealSuggestions_DatabaseError(t *testing.T) {
 	repo := NewRepository(sqlxDB)
 
 	userID := uuid.New()
-	queryTime, _ := time.Parse("15:04", "12:00")
+	mealType := MealTypeLunch
 
 	expectedQuery := `WITH meal_descriptions`
 
@@ -228,7 +228,7 @@ func TestGetMealSuggestions_DatabaseError(t *testing.T) {
 		WillReturnError(sqlmock.ErrCancelled)
 
 	// Execute
-	_, err = repo.GetMealSuggestions(context.Background(), userID, queryTime)
+	_, err = repo.GetMealSuggestions(context.Background(), userID, mealType)
 
 	// Verify error is returned
 	if err == nil {

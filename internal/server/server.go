@@ -23,7 +23,7 @@ type Server struct {
 
 // NewServer creates a new server instance with clean dependency injection
 func NewServer(cfg *config.Config, log *logger.Logger, sb *supabase.Client) *Server {
-	return NewServerWithHandlers(cfg, log, sb, nil, nil, nil, nil, nil)
+	return NewServerWithHandlers(cfg, log, sb, nil, nil, nil, nil, nil, nil)
 }
 
 // NewServerWithHandlers creates a new server instance with nutrition domain handlers
@@ -36,6 +36,7 @@ func NewServerWithHandlers(
 	templatesHandler interface{ RegisterRoutes(chi.Router) },
 	analyticsHandler interface{ RegisterRoutes(chi.Router) },
 	goalsHandler interface{ RegisterRoutes(chi.Router) },
+	userHandler interface{ RegisterRoutes(chi.Router) },
 ) *Server {
 	// Convert logger.Logger to *slog.Logger for handlers
 	slogLogger := slog.Default()
@@ -57,6 +58,13 @@ func NewServerWithHandlers(
 		TemplatesHandler: templatesHandler,
 		AnalyticsHandler: analyticsHandler,
 		GoalsHandler:     goalsHandler,
+		UserHandler:      userHandler,
+		// New service handlers will be set via SetNutritionDependencies
+		MediaHandler:       nil,
+		VoiceHandler:       nil,
+		TrajectoryHandler:  nil,
+		SuggestionsHandler: nil,
+		CommonFoodsHandler: nil,
 	}
 
 	// Create router
@@ -67,6 +75,18 @@ func NewServerWithHandlers(
 		Logger:   log,
 		Supabase: sb,
 		Router:   router,
+	}
+}
+
+// SetNutritionDependencies updates the router with nutrition domain handlers
+func (s *Server) SetNutritionDependencies(deps *NutritionDependencies) {
+	// Update the router's HandlerDependencies with nutrition handlers
+	if router, ok := s.Router.(*Router); ok {
+		router.deps.MediaHandler = deps.MediaHandler
+		router.deps.VoiceHandler = deps.VoiceHandler
+		router.deps.TrajectoryHandler = deps.TrajectoryHandler
+		router.deps.SuggestionsHandler = deps.SuggestionsHandler
+		router.deps.CommonFoodsHandler = deps.CommonFoodsHandler
 	}
 }
 

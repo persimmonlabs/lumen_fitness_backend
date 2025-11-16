@@ -28,13 +28,12 @@ COMMENT ON INDEX idx_users_created_at IS 'User registration analytics';
 CREATE INDEX idx_meals_user_time ON meals(user_id, meal_time DESC);
 
 -- Date-based queries (respecting timezone)
-CREATE INDEX idx_meals_user_date ON meals(user_id, DATE(meal_time AT TIME ZONE 'UTC'));
+-- Note: Removed function-based index - use idx_meals_user_time for date range queries
 
 -- Recent meals for a user
 CREATE INDEX idx_meals_created_at ON meals(user_id, created_at DESC);
 
-COMMENT ON INDEX idx_meals_user_time IS 'Primary index for user meal timeline queries';
-COMMENT ON INDEX idx_meals_user_date IS 'Daily meal aggregation queries';
+COMMENT ON INDEX idx_meals_user_time IS 'Primary index for user meal timeline and date range queries';
 COMMENT ON INDEX idx_meals_created_at IS 'Recent meals for user';
 
 -- =====================================================
@@ -71,10 +70,9 @@ COMMENT ON INDEX idx_meal_flags_type IS 'Admin analysis of flag types';
 CREATE INDEX idx_weight_entries_user_measured ON weight_entries(user_id, measured_at DESC);
 
 -- Date-based lookups
-CREATE INDEX idx_weight_entries_user_date ON weight_entries(user_id, DATE(measured_at AT TIME ZONE 'UTC'));
+-- Note: Removed function-based index - use idx_weight_entries_user_measured for date range queries
 
-COMMENT ON INDEX idx_weight_entries_user_measured IS 'Weight tracking timeline';
-COMMENT ON INDEX idx_weight_entries_user_date IS 'Daily weight lookup';
+COMMENT ON INDEX idx_weight_entries_user_measured IS 'Weight tracking timeline and date range queries';
 
 -- =====================================================
 -- TEMPLATES TABLE INDEXES
@@ -128,14 +126,10 @@ CREATE INDEX idx_ai_usage_user_time ON ai_usage(user_id, created_at DESC);
 CREATE INDEX idx_ai_usage_endpoint_time ON ai_usage(endpoint, created_at DESC);
 
 -- Monthly cost aggregation
-CREATE INDEX idx_ai_usage_user_month ON ai_usage(
-    user_id,
-    DATE_TRUNC('month', created_at)
-);
+-- Note: Removed function-based index - use idx_ai_usage_user_time for time-based queries
 
-COMMENT ON INDEX idx_ai_usage_user_time IS 'Rate limiting queries';
+COMMENT ON INDEX idx_ai_usage_user_time IS 'Rate limiting queries and monthly usage reports';
 COMMENT ON INDEX idx_ai_usage_endpoint_time IS 'Cost analysis per endpoint';
-COMMENT ON INDEX idx_ai_usage_user_month IS 'Monthly usage reports';
 
 -- =====================================================
 -- IDEMPOTENCY_KEYS TABLE INDEXES

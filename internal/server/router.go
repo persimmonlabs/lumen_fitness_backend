@@ -156,8 +156,8 @@ func (r *Router) setupRoutes() {
 		// Protected routes - require authentication
 		apiRouter.Group(func(protectedRouter chi.Router) {
 			// Add authentication middleware for protected routes
-			// Uses Supabase JWT validation
-			authConfig := custommw.DefaultAuthConfig(r.deps.Supabase.GetJWTSecret())
+			// Uses Supabase JWT validation with JWKS support for key rotation
+			authConfig := custommw.DefaultAuthConfig(r.deps.Supabase.GetJWTSecret(), r.deps.Supabase.GetURL())
 			authConfig.Enabled = true // Enable strict authentication
 			authConfig.SkipPaths = []string{} // All routes in this group require auth
 			protectedRouter.Use(custommw.Auth(authConfig))

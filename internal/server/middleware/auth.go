@@ -17,6 +17,11 @@ type AuthConfig struct {
 	// This should be stored securely and never committed to version control.
 	JWTSecret string
 
+	// SupabaseURL is the Supabase project URL (needed for JWKS endpoint)
+	// Format: https://your-project.supabase.co
+	// Required for validating tokens with key rotation
+	SupabaseURL string
+
 	// Enabled determines whether authentication is enforced.
 	// When false, the middleware adds user info to context if present
 	// but doesn't reject unauthenticated requests.
@@ -59,9 +64,10 @@ type AuthConfig struct {
 }
 
 // DefaultAuthConfig returns authentication configuration with sensible defaults.
-func DefaultAuthConfig(jwtSecret string) AuthConfig {
+func DefaultAuthConfig(jwtSecret, supabaseURL string) AuthConfig {
 	return AuthConfig{
 		JWTSecret:       jwtSecret,
+		SupabaseURL:     supabaseURL,
 		Enabled:         true,
 		SkipPaths:       []string{"/health", "/metrics"},
 		TokenLookup:     "header:Authorization",
@@ -159,7 +165,9 @@ func Auth(config AuthConfig) func(http.Handler) http.Handler {
 			}
 
 			// Validate and parse JWT token
-			userID, err := validateJWT(token, config.JWTSecret)
+			// Use JWKS validation for tokens with kid header (new Supabase tokens)
+			// Fallback to HS256 for legacy tokens without kid
+			userID, err := validateJWTWithJWKS(token, config.SupabaseURL, config.JWTSecret)
 			if err != nil {
 				if config.Enabled {
 					// Authentication required but token invalid

@@ -13,6 +13,7 @@ type Client struct {
 	*supabase.Client
 	Enabled   bool
 	jwtSecret string
+	url       string
 	logger    *logger.Logger
 }
 
@@ -61,6 +62,7 @@ func NewClient(cfg *config.Config, log *logger.Logger) (*Client, error) {
 		Client:    client,
 		Enabled:   true,
 		jwtSecret: cfg.Supabase.JWTSecret,
+		url:       cfg.Supabase.URL,
 		logger:    log,
 	}, nil
 }
@@ -91,6 +93,11 @@ func (c *Client) IsEnabled() bool {
 // GetJWTSecret returns the JWT secret for token validation
 func (c *Client) GetJWTSecret() string {
 	return c.jwtSecret
+}
+
+// GetURL returns the Supabase project URL
+func (c *Client) GetURL() string {
+	return c.url
 }
 
 // Close performs any necessary cleanup

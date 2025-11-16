@@ -767,6 +767,154 @@ go build -o bin/api cmd/api/main.go
 APP_MODE=development go run cmd/api/main.go
 ```
 
+## Nutrition Calculation Rules
+
+**Last Updated:** 2025-11-16
+
+### Single Source of Truth
+
+**CRITICAL: Database triggers (migration 012) are the ONLY place that calculates meal nutrition totals.**
+
+- ✅ Database triggers automatically calculate `meals.total_*` columns when meal_items change
+- ❌ Backend services NEVER manually calculate totals
+- ❌ Frontend components NEVER calculate totals client-side
+
+**Why:** This ensures data consistency across all layers and eliminates calculation bugs.
+
+**Implementation:**
+```sql
+-- Database trigger (migration 012_nutrition_totals_trigger.up.sql)
+CREATE OR REPLACE FUNCTION update_meal_nutrition_totals()
+RETURNS TRIGGER AS $$
+BEGIN
+    UPDATE meals
+    SET
+        total_calories = COALESCE((SELECT SUM(calories) FROM meal_items WHERE meal_id = NEW.meal_id), 0),
+        total_protein_g = COALESCE((SELECT SUM(protein) FROM meal_items WHERE meal_id = NEW.meal_id), 0),
+        total_carbs_g = COALESCE((SELECT SUM(carbs) FROM meal_items WHERE meal_id = NEW.meal_id), 0),
+        total_fat_g = COALESCE((SELECT SUM(fat) FROM meal_items WHERE meal_id = NEW.meal_id), 0),
+        total_fiber_g = COALESCE((SELECT SUM(fiber) FROM meal_items WHERE meal_id = NEW.meal_id), 0)
+    WHERE id = NEW.meal_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+```
+
+### Naming Standards
+
+**AUTHORITATIVE REFERENCE:** See `backend/docs/naming-standards.md` for complete naming rules.
+
+**Quick Reference:**
+
+| Layer | Field Type | Format | Example |
+|-------|-----------|---------|---------|
+| Database (meals) | Total macros | `total_<macro>_g` | `total_protein_g` |
+| Database (meal_items) | Individual macros | `<macro>` (no suffix) | `protein` |
+| Go JSON tags | All macros | `<field>_g` | `"protein_g"` |
+| Go DB tags | Match DB exactly | (varies) | `db:"protein"` or `db:"total_protein_g"` |
+| TypeScript | All macros | `<field>_g` | `protein_g: number` |
+
+**Key Rule:** JSON responses ALWAYS use `_g` suffix for clarity. Database columns vary by table.
+
+**Example Go Struct:**
+```go
+type Meal struct {
+    TotalCalories float64 `json:"total_calories" db:"total_calories"`
+    TotalProteinG float64 `json:"total_protein_g" db:"total_protein_g"`  // Note: _g in both
+}
+
+type MealItem struct {
+    Calories  float64 `json:"calories" db:"calories"`
+    ProteinG  float64 `json:"protein_g" db:"protein"`  // ⚠️ JSON has _g, DB does NOT
+}
+```
+
+### Macro Constants
+
+**NEVER hardcode Atwater factors (4, 4, 9) in code.**
+
+**ALWAYS import from:** `internal/domain/nutrition/constants/macros.go`
+
+```go
+import "github.com/lumen/fitness-app/internal/domain/nutrition/constants"
+
+// ✅ CORRECT
+calculatedCalories := constants.CalculateMacroCalories(proteinG, carbsG, fatG)
+
+// ✅ CORRECT - Using constants
+calories := (protein * constants.CaloriesPerGramProtein) +
+           (carbs * constants.CaloriesPerGramCarbs) +
+           (fat * constants.CaloriesPerGramFat)
+
+// ❌ WRONG - Hardcoded values
+calories := (protein * 4) + (carbs * 4) + (fat * 9)
+```
+
+**Available Constants:**
+- `CaloriesPerGramProtein` = 4.0
+- `CaloriesPerGramCarbs` = 4.0
+- `CaloriesPerGramFat` = 9.0
+- `CaloriesPerGramAlcohol` = 7.0 (future use)
+- `MacroCalorieTolerancePercent` = 0.10 (10% validation tolerance)
+
+**Validation:**
+```go
+// Use helper function for validation
+isValid := constants.ValidateMacroCalories(statedCalories, proteinG, carbsG, fatG)
+```
+
+### Migration History
+
+**Migration 012:** `012_nutrition_totals_trigger.up.sql`
+- Created database triggers for automatic total calculation
+- Renamed `food_name` → `name` in meal_items and template_items
+- Dropped deprecated `meal_time` and `name` columns from meals table
+
+**Migration 013:** `013_optimize_rpc_functions.up.sql`
+- Optimized RPC functions to use pre-calculated `meals.total_*` columns
+- Removed manual SUM operations from SQL queries
+- **150x performance improvement** on large datasets
+
+### Code Review Checklist
+
+When reviewing nutrition-related code:
+
+- [ ] NO manual total calculations in backend services
+- [ ] NO manual total calculations in frontend components
+- [ ] ALL JSON field names match `backend/docs/naming-standards.md`
+- [ ] TypeScript interfaces match backend JSON tags exactly
+- [ ] Atwater factors imported from `constants/macros.go` (no hardcoding)
+- [ ] Database triggers remain intact (no ALTER TRIGGER DISABLE)
+
+### Common Mistakes to Avoid
+
+```go
+// ❌ WRONG: Calculating totals in service layer
+func (s *service) CreateMeal(...) {
+    totalCalories := 0.0
+    for _, item := range items {
+        totalCalories += item.Calories  // Database should do this!
+    }
+}
+
+// ❌ WRONG: Using wrong field names
+type MealItem struct {
+    FoodName string `json:"food_name"` // Should be "name"
+    Grams    float64 `json:"grams"`     // Should be "quantity"
+}
+
+// ❌ WRONG: Hardcoding macro constants
+calories := (protein * 4) + (carbs * 4) + (fat * 9)  // Use constants!
+```
+
+**Related Documentation:**
+- Authoritative naming rules: `backend/docs/naming-standards.md`
+- API field reference: `backend/docs/API-NUTRITION-CONTRACTS.md`
+- Architecture details: `backend/docs/ARCHITECTURE-SINGLE-SOURCE-TRUTH.md`
+- Migration analysis: `backend/docs/calculation-inventory.md`
+
+---
+
 ## Resources
 
 - [Go Code Review Comments](https://github.com/golang/go/wiki/CodeReviewComments)

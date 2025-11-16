@@ -140,17 +140,15 @@ func (r *repository) ListMealsByUser(ctx context.Context, userID uuid.UUID, filt
 	`
 
 	args := []interface{}{userID}
-	argCount := 1
 
+	// Use len(args) to track parameter position dynamically
 	if filters.Date != nil {
-		argCount++
-		query += fmt.Sprintf(" AND DATE(m.consumed_at) = DATE($%d)", argCount)
+		query += fmt.Sprintf(" AND DATE(m.consumed_at) = DATE($%d)", len(args)+1)
 		args = append(args, *filters.Date)
 	}
 
 	if filters.MealType != nil {
-		argCount++
-		query += fmt.Sprintf(" AND m.meal_type = $%d", argCount)
+		query += fmt.Sprintf(" AND m.meal_type = $%d", len(args)+1)
 		args = append(args, *filters.MealType)
 	}
 
@@ -164,9 +162,9 @@ func (r *repository) ListMealsByUser(ctx context.Context, userID uuid.UUID, filt
 		return nil, 0, fmt.Errorf("count meals: %w", err)
 	}
 
-	// Add pagination
+	// Add pagination - use len(args) for correct parameter numbering
 	offset := (filters.Page - 1) * filters.Limit
-	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", argCount+1, argCount+2)
+	query += fmt.Sprintf(" LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
 	args = append(args, filters.Limit, offset)
 
 	var meals []MealListItem

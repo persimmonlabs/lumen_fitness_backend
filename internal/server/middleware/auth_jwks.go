@@ -196,23 +196,33 @@ func base64URLDecode(s string) ([]byte, error) {
 	return base64.StdEncoding.DecodeString(s)
 }
 
-// validateJWTWithJWKS validates a JWT token using JWKS
+// validateJWTWithJWKS validates a JWT token using JWKS or fallback secret
 func validateJWTWithJWKS(tokenString, supabaseURL, anonKey, fallbackSecret string) (string, error) {
-	// Create JWKS key function
-	jwksKeyFunc := NewJWKSKeyFunc(supabaseURL, anonKey)
-
 	// Parse and validate token
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
-		// Try JWKS first (for new tokens with kid)
-		if _, ok := token.Header["kid"]; ok {
-			return jwksKeyFunc.GetKey(token)
-		}
+		// Check signing method first
+		_, isHMAC := token.Method.(*jwt.SigningMethodHMAC)
+		_, isRSA := token.Method.(*jwt.SigningMethodRSA)
 
-		// Fallback to HS256 for legacy tokens without kid
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		if !isHMAC && !isRSA {
 			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
 		}
-		return []byte(fallbackSecret), nil
+
+		// If it's HS256 (HMAC), use the legacy JWT secret regardless of kid
+		// Supabase still uses HS256 even with key rotation - kid is just metadata
+		if isHMAC {
+			return []byte(fallbackSecret), nil
+		}
+
+		// Only try JWKS for RSA tokens (future-proofing)
+		if isRSA {
+			if _, ok := token.Header["kid"]; ok {
+				jwksKeyFunc := NewJWKSKeyFunc(supabaseURL, anonKey)
+				return jwksKeyFunc.GetKey(token)
+			}
+		}
+
+		return nil, fmt.Errorf("cannot validate token: no valid key source")
 	})
 
 	if err != nil {

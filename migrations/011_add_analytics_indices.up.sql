@@ -33,14 +33,12 @@ CREATE INDEX IF NOT EXISTS idx_meals_user_consumed_desc
 -- Index for weight trajectory calculations
 -- Supports: GetWeightTrajectory with date range lookups
 CREATE INDEX IF NOT EXISTS idx_weight_entries_user_measured
-    ON weight_entries(user_id, measured_at DESC)
-    WHERE deleted_at IS NULL;
+    ON weight_entries(user_id, measured_at DESC);
 
 -- Index for date range queries on weight data
 -- Supports: GetByDateRange in weight repository
 CREATE INDEX IF NOT EXISTS idx_weight_entries_date_range
-    ON weight_entries(user_id, measured_at)
-    WHERE deleted_at IS NULL;
+    ON weight_entries(user_id, measured_at);
 
 -- =====================================================
 -- USER DAILY GOALS TABLE INDEX

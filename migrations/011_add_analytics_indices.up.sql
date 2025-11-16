@@ -61,7 +61,7 @@ CREATE INDEX IF NOT EXISTS idx_meal_items_meal
 -- Index for nutrition totals calculations
 -- Supports: SUM aggregations in GetDailyNutrition
 CREATE INDEX IF NOT EXISTS idx_meal_items_meal_calories
-    ON meal_items(meal_id, calories, protein_g, carbs_g, fat_g);
+    ON meal_items(meal_id, calories, protein, carbs, fat);
 
 -- =====================================================
 -- COMMENTS

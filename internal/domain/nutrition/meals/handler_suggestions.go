@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/google/uuid"
+	custommw "github.com/pradord/lumen_final/backend/internal/server/middleware"
 )
 
 // GetMealSuggestions handles GET /api/v1/meals/suggestions?time=12:30
@@ -20,8 +20,8 @@ import (
 // @Failure 500 {object} ErrorResponse
 // @Router /meals/suggestions [get]
 func (h *Handler) GetMealSuggestions(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}

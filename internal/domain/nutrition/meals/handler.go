@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	custommw "github.com/pradord/lumen_final/backend/internal/server/middleware"
 )
 
 // Handler handles HTTP requests for meal endpoints
@@ -27,8 +28,8 @@ func NewHandler(service Service, logger *slog.Logger) *Handler {
 
 // ParseMeal handles POST /api/v1/meals/parse
 func (h *Handler) ParseMeal(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
@@ -68,8 +69,8 @@ func (h *Handler) ParseMeal(w http.ResponseWriter, r *http.Request) {
 
 // ConfirmMeal handles POST /api/v1/meals/confirm
 func (h *Handler) ConfirmMeal(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
@@ -105,8 +106,8 @@ func (h *Handler) ConfirmMeal(w http.ResponseWriter, r *http.Request) {
 
 // GetMeal handles GET /api/v1/meals/{id}
 func (h *Handler) GetMeal(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
@@ -133,8 +134,8 @@ func (h *Handler) GetMeal(w http.ResponseWriter, r *http.Request) {
 
 // ListMeals handles GET /api/v1/meals
 func (h *Handler) ListMeals(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
@@ -188,8 +189,8 @@ func (h *Handler) ListMeals(w http.ResponseWriter, r *http.Request) {
 
 // UpdateMeal handles PUT /api/v1/meals/{id}
 func (h *Handler) UpdateMeal(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
@@ -222,8 +223,8 @@ func (h *Handler) UpdateMeal(w http.ResponseWriter, r *http.Request) {
 
 // DeleteMeal handles DELETE /api/v1/meals/{id}
 func (h *Handler) DeleteMeal(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
@@ -249,8 +250,8 @@ func (h *Handler) DeleteMeal(w http.ResponseWriter, r *http.Request) {
 
 // CopyMeal handles POST /api/v1/meals/{id}/copy
 func (h *Handler) CopyMeal(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
@@ -283,8 +284,8 @@ func (h *Handler) CopyMeal(w http.ResponseWriter, r *http.Request) {
 
 // EstimateMeal handles POST /api/v1/meals/estimate
 func (h *Handler) EstimateMeal(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}
@@ -320,8 +321,8 @@ func (h *Handler) EstimateMeal(w http.ResponseWriter, r *http.Request) {
 
 // ParseVoice handles POST /api/v1/meals/parse-voice
 func (h *Handler) ParseVoice(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}

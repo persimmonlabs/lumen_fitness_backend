@@ -6,13 +6,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	custommw "github.com/pradord/lumen_final/backend/internal/server/middleware"
 )
 
 // GetDraftStatus handles GET /api/v1/meals/draft/{id}/status
 // Returns the current processing status of a draft meal
 func (h *Handler) GetDraftStatus(w http.ResponseWriter, r *http.Request) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		h.errorResponse(w, http.StatusUnauthorized, "unauthorized", nil)
 		return
 	}

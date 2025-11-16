@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	custommw "github.com/pradord/lumen_final/backend/internal/server/middleware"
 )
 
 // Handler handles HTTP requests for weight tracking
@@ -226,19 +227,12 @@ func (h *Handler) GetTrend(w http.ResponseWriter, r *http.Request) {
 // Helper functions
 
 func getUserIDFromContext(ctx context.Context) uuid.UUID {
-	// This should extract user ID from context (set by auth middleware)
-	userID := ctx.Value("user_id")
-	if userID == nil {
+	// Use middleware helper function which handles typed context keys correctly
+	userID, err := custommw.GetUserUUID(ctx)
+	if err != nil {
 		return uuid.Nil
 	}
-	if id, ok := userID.(uuid.UUID); ok {
-		return id
-	}
-	if id, ok := userID.(string); ok {
-		parsed, _ := uuid.Parse(id)
-		return parsed
-	}
-	return uuid.Nil
+	return userID
 }
 
 func respondJSON(w http.ResponseWriter, status int, data interface{}) {

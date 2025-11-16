@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/google/uuid"
+	custommw "github.com/pradord/lumen_final/backend/internal/server/middleware"
 )
 
 // Handler handles HTTP requests for nutrition analytics
@@ -346,15 +346,8 @@ func (h *Handler) GetTrajectory(w http.ResponseWriter, r *http.Request) {
 // getUserID extracts user ID from request context
 // This should be set by authentication middleware
 func (h *Handler) getUserID(r *http.Request) string {
-	// Try UUID type first (current auth middleware stores UUID)
-	if userUUID, ok := r.Context().Value("user_id").(uuid.UUID); ok {
-		return userUUID.String()
-	}
-	// Fall back to string type for compatibility
-	if userID, ok := r.Context().Value("user_id").(string); ok {
-		return userID
-	}
-	return ""
+	// Use middleware helper function which handles typed context keys correctly
+	return custommw.GetUserID(r.Context())
 }
 
 // ErrorResponse represents an error response

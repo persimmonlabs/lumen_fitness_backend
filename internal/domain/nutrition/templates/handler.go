@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
+	custommw "github.com/pradord/lumen_final/backend/internal/server/middleware"
 )
 
 // Handler handles HTTP requests for templates
@@ -238,8 +239,8 @@ func (h *Handler) handleServiceError(w http.ResponseWriter, err error) {
 
 // getUserIDFromContext extracts user ID from request context
 func getUserIDFromContext(r *http.Request) (uuid.UUID, error) {
-	userID, ok := r.Context().Value("user_id").(uuid.UUID)
-	if !ok {
+	userID, err := custommw.GetUserUUID(r.Context())
+	if err != nil {
 		return uuid.Nil, http.ErrNotSupported
 	}
 	return userID, nil

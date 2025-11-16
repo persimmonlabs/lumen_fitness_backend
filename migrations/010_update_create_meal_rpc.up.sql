@@ -85,10 +85,10 @@ BEGIN
             quantity,
             unit,
             calories,
-            protein_g,
-            carbs_g,
-            fat_g,
-            fiber_g
+            protein,
+            carbs,
+            fat,
+            fiber
         )
         VALUES (
             v_meal_id,

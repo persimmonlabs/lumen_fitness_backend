@@ -169,17 +169,17 @@ type MealResponse struct {
 
 // MealListItem represents a summary of a meal in a list
 type MealListItem struct {
-	ID            uuid.UUID `json:"id"`
-	MealType      MealType  `json:"meal_type"`
-	ConsumedAt    time.Time `json:"consumed_at"`
-	TotalCalories float64   `json:"total_calories"`
-	TotalProteinG float64   `json:"total_protein_g"`
-	TotalCarbsG   float64   `json:"total_carbs_g"`
-	TotalFatG     float64   `json:"total_fat_g"`
-	TotalFiberG   float64   `json:"total_fiber_g"`
-	ItemCount     int       `json:"item_count"`
-	HasPhotos     bool      `json:"has_photos"`
-	CreatedAt     time.Time `json:"created_at"`
+	ID            uuid.UUID `json:"id" db:"id"`
+	MealType      MealType  `json:"meal_type" db:"meal_type"`
+	ConsumedAt    time.Time `json:"consumed_at" db:"consumed_at"`
+	TotalCalories float64   `json:"total_calories" db:"total_calories"`
+	TotalProteinG float64   `json:"total_protein_g" db:"total_protein_g"`
+	TotalCarbsG   float64   `json:"total_carbs_g" db:"total_carbs_g"`
+	TotalFatG     float64   `json:"total_fat_g" db:"total_fat_g"`
+	TotalFiberG   float64   `json:"total_fiber_g" db:"total_fiber_g"`
+	ItemCount     int       `json:"item_count" db:"item_count"`
+	HasPhotos     bool      `json:"has_photos" db:"has_photos"`
+	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 }
 
 // Pagination represents pagination metadata

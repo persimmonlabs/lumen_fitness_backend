@@ -264,8 +264,7 @@ CREATE TABLE weight_entries (
 
     -- Constraints
     CONSTRAINT valid_weight CHECK (weight_kg > 0 AND weight_kg <= 500),
-    CONSTRAINT notes_length CHECK (notes IS NULL OR char_length(notes) <= 500),
-    CONSTRAINT one_entry_per_day UNIQUE (user_id, DATE(measured_at AT TIME ZONE 'UTC'))
+    CONSTRAINT notes_length CHECK (notes IS NULL OR char_length(notes) <= 500)
 );
 
 -- Enable RLS

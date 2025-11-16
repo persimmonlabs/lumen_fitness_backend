@@ -413,7 +413,7 @@ func (r *repository) GetDraftStatus(ctx context.Context, userID, draftID uuid.UU
 	var items []MealItem
 	if meal.DraftStatus != nil && *meal.DraftStatus == DraftStatusReady {
 		itemsQuery := `
-			SELECT id, meal_id, name, quantity, unit, calories, protein_g, carbs_g, fat_g, fiber_g, created_at
+			SELECT id, meal_id, name, quantity, unit, calories, protein, carbs, fat, fiber, created_at
 			FROM meal_items
 			WHERE meal_id = $1
 			ORDER BY created_at

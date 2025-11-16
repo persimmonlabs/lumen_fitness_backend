@@ -1,3 +1,15 @@
+// Package templates provides meal template management for the fitness app.
+//
+// Meal templates allow users to save frequently eaten meals for quick logging.
+// Templates store meal items with nutrition data that can be reused to create
+// new meals without re-entering all the details.
+//
+// Key features:
+//   - Create templates from existing meals
+//   - List user's saved templates
+//   - Apply templates to create new meals
+//   - Update and delete templates
+//   - Nutrition data pre-calculation
 package templates
 
 import (

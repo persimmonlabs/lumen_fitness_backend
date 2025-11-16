@@ -163,19 +163,31 @@ func (r *repository) GetUserGoals(ctx context.Context, userID string) (*UserGoal
 
 // GetLoggingStreak calculates consecutive days with logged nutrition
 func (r *repository) GetLoggingStreak(ctx context.Context, userID string, endDate time.Time, timezone string) (int, error) {
+	// Input validation
+	if userID == "" {
+		return 0, fmt.Errorf("user ID cannot be empty")
+	}
+	if timezone == "" {
+		timezone = "UTC" // Default to UTC if not specified
+	}
+	if endDate.IsZero() {
+		endDate = time.Now() // Default to now if not specified
+	}
+
 	query := `
 		WITH RECURSIVE date_series AS (
 			SELECT $2::date as log_date, 0 as day_offset
 			UNION ALL
 			SELECT (log_date - INTERVAL '1 day')::date, day_offset + 1
 			FROM date_series
-			WHERE day_offset < 365
+			WHERE day_offset < ` + fmt.Sprint(StreakRecursionLimit) + `
 		),
 		logged_days AS (
 			SELECT DISTINCT DATE(consumed_at AT TIME ZONE $3) as log_date
-			FROM food_logs
+			FROM meals
 			WHERE user_id = $1
 			  AND consumed_at AT TIME ZONE $3 <= $2::date
+			  AND deleted_at IS NULL
 		)
 		SELECT COUNT(*)
 		FROM date_series ds

@@ -573,18 +573,18 @@ func (s *service) CalculateTrajectory(ctx context.Context, userID string) (*Traj
 		return nil, fmt.Errorf("failed to get user goal: %w", err)
 	}
 
-	// Get weight entries for the last 60 days minimum
+	// Get weight entries for the last N days minimum
 	endDate := time.Now()
-	startDate := endDate.AddDate(0, 0, -60)
+	startDate := endDate.AddDate(0, 0, -WeightTrajectoryWindowDays)
 
 	weightEntries, err := s.weightRepo.GetByDateRange(ctx, userUUID, startDate, endDate)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get weight entries: %w", err)
 	}
 
-	// Need at least 7 data points for meaningful prediction
-	if len(weightEntries) < 7 {
-		return nil, fmt.Errorf("insufficient data: need at least 7 weight entries")
+	// Need at least minimum data points for meaningful prediction
+	if len(weightEntries) < MinimumWeightDataPoints {
+		return nil, fmt.Errorf("insufficient data: need at least %d weight entries", MinimumWeightDataPoints)
 	}
 
 	// Extract weights and dates
@@ -595,8 +595,8 @@ func (s *service) CalculateTrajectory(ctx context.Context, userID string) (*Traj
 		dates[i] = entry.MeasuredAt
 	}
 
-	// Apply 7-day moving average smoothing
-	smoothedWeights := applyMovingAverage(weights, 7)
+	// Apply moving average smoothing
+	smoothedWeights := applyMovingAverage(weights, MovingAverageWindowDays)
 
 	// Convert dates to days since first measurement for regression
 	xValues := make([]float64, len(smoothedWeights))

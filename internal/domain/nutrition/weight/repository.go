@@ -1,3 +1,15 @@
+// Package weight provides weight tracking functionality for the fitness app.
+//
+// This package handles weight entry management including creating, reading,
+// and analyzing weight data over time. It supports weight trajectory calculations,
+// progress tracking, and integration with nutrition analytics for comprehensive
+// health insights.
+//
+// Key features:
+//   - Weight entry creation and retrieval
+//   - Date range queries for trend analysis
+//   - Soft deletion support
+//   - Integration with analytics for weight loss/gain insights
 package weight
 
 import (

@@ -1,232 +1,156 @@
-# Lumen Nutrition Tracker - Database Migrations
+# Database Migrations
 
-This directory contains SQL migration files for the Lumen Nutrition Tracker database schema.
+This directory contains all database migrations for the Lumen Fitness application.
 
-## Migration Files
+## Migration Naming Convention
 
-### 001_initial_schema
-**Up**: Creates all core tables with Row Level Security (RLS) policies
-- `users` - User profiles extending Supabase auth
-- `user_daily_goals` - Daily nutrition targets
-- `meals` - Meal entries with timestamps
-- `meal_items` - Individual foods within meals (denormalized nutrition)
-- `meal_flags` - User-reported data issues
-- `weight_entries` - Weight tracking
-- `templates` - Reusable meal templates
-- `template_items` - Foods within templates
-- `common_foods` - Global food database
-- `ai_usage` - AI API usage tracking
-- `idempotency_keys` - Request deduplication
+Migrations follow the pattern: `{number}_{description}.{up|down}.sql`
 
-**Down**: Drops all tables
+- **Number**: Sequential version number (001, 002, etc.)
+- **Description**: Short kebab-case description
+- **Direction**:
+  - `.up.sql` - Apply migration (creates/modifies schema)
+  - `.down.sql` - Rollback migration (reverses changes)
 
-### 002_rpc_functions
-**Up**: Creates database functions for atomic operations
-- `create_meal_with_items(...)` - Create meal + items in single transaction
-- `get_daily_nutrition(...)` - Get daily totals with timezone support
-- `create_template_from_meal(...)` - Convert meal to reusable template
-- `search_common_foods(...)` - Fuzzy search for common foods
-- `get_nutrition_trends(...)` - Daily nutrition over date range
+## Migration Order
 
-**Down**: Drops all functions
+Migrations must be run in sequential order (001 → 008):
 
-### 003_indexes
-**Up**: Creates performance indexes and enables extensions
-- pg_trgm extension for fuzzy text search
-- Indexes on all foreign keys
-- Composite indexes for common query patterns
-- GIN indexes for full-text search
+### Core Schema (001-003)
+1. `001_initial_schema.up.sql` - Creates all base tables (meals, weight, templates, goals, analytics, common_foods, etc.)
+2. `002_rpc_functions.up.sql` - Creates stored procedures for analytics calculations
+3. `003_indexes.up.sql` - Creates performance indexes
 
-**Down**: Drops all indexes and extensions
+### Feature Additions (004-006)
+4. `004_add_normalized_description.up.sql` - Adds normalized_description column to meals
+5. `005_add_draft_status.up.sql` - Adds draft meal workflow support
+6. `006_add_onboarding_tracking.up.sql` - Adds onboarding state tracking
 
-## Running Migrations in Supabase
+### User Management (007)
+7. `007_user_profiles_and_settings.up.sql` - Creates user_profiles and user_settings tables
 
-### Method 1: SQL Editor (Recommended)
+### Search Optimization (008)
+8. `008_common_foods_indexes.up.sql` - Adds full-text search indexes to common_foods
 
-1. Open Supabase Dashboard → SQL Editor
-2. Run migrations in order:
-   ```sql
-   -- 1. Initial Schema
-   -- Copy/paste contents of 001_initial_schema.up.sql
+## Running Migrations
 
-   -- 2. RPC Functions
-   -- Copy/paste contents of 002_rpc_functions.up.sql
+### Using psql directly
+```bash
+# Run migrations in order
+psql $DATABASE_URL < migrations/001_initial_schema.up.sql
+psql $DATABASE_URL < migrations/002_rpc_functions.up.sql
+psql $DATABASE_URL < migrations/003_indexes.up.sql
+psql $DATABASE_URL < migrations/004_add_normalized_description.up.sql
+psql $DATABASE_URL < migrations/005_add_draft_status.up.sql
+psql $DATABASE_URL < migrations/006_add_onboarding_tracking.up.sql
+psql $DATABASE_URL < migrations/007_user_profiles_and_settings.up.sql
+psql $DATABASE_URL < migrations/008_common_foods_indexes.up.sql
+```
 
-   -- 3. Indexes
-   -- Copy/paste contents of 003_indexes.up.sql
-   ```
+### Using migrate tool
+```bash
+# Install migrate
+go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
 
-3. Verify tables created:
-   ```sql
-   SELECT tablename FROM pg_tables WHERE schemaname = 'public';
-   ```
+# Apply all up migrations
+migrate -path ./migrations -database $DATABASE_URL up
 
-### Method 2: Supabase CLI
+# Rollback last migration
+migrate -path ./migrations -database $DATABASE_URL down 1
+```
+
+## Migration Dependencies
+
+| Migration | Requires | Description |
+|-----------|----------|-------------|
+| 001 | None | Base schema creation |
+| 002 | 001 | References tables from 001 |
+| 003 | 001 | Indexes tables from 001 |
+| 004 | 001 | Modifies meals table |
+| 005 | 001 | Modifies meals table |
+| 006 | 001 | Modifies meals table |
+| 007 | 001 | References auth.users from Supabase |
+| 008 | 001 | Indexes common_foods table |
+
+## Rollback Order
+
+When rolling back, run migrations in **reverse order** (008 → 001):
 
 ```bash
-# Install Supabase CLI
-npm install -g supabase
-
-# Initialize project (if not already done)
-supabase init
-
-# Link to your project
-supabase link --project-ref your-project-ref
-
-# Run migrations
-supabase db push
+psql $DATABASE_URL < migrations/008_common_foods_indexes.down.sql
+psql $DATABASE_URL < migrations/007_user_profiles_and_settings.down.sql
+psql $DATABASE_URL < migrations/006_add_onboarding_tracking.down.sql
+psql $DATABASE_URL < migrations/005_add_draft_status.down.sql
+psql $DATABASE_URL < migrations/004_add_normalized_description.down.sql
+psql $DATABASE_URL < migrations/003_indexes.down.sql
+psql $DATABASE_URL < migrations/002_rpc_functions.down.sql
+psql $DATABASE_URL < migrations/001_initial_schema.down.sql
 ```
 
-### Method 3: Manual SQL Files
+## Schema Overview
 
-1. Connect to database using psql or any PostgreSQL client
-2. Run in order:
-   ```bash
-   psql "postgresql://..." -f 001_initial_schema.up.sql
-   psql "postgresql://..." -f 002_rpc_functions.up.sql
-   psql "postgresql://..." -f 003_indexes.up.sql
-   ```
+### Core Tables
+- `nutrition.meals` - User meal entries with items
+- `nutrition.meal_items` - Individual food items in meals
+- `nutrition.weight_entries` - User weight tracking
+- `nutrition.templates` - Reusable meal templates
+- `nutrition.template_items` - Items in templates
+- `user_goals` - User nutrition goals
+- `daily_goals` - Day-specific goal overrides
+- `common_foods` - Database of verified common foods
 
-## Rollback Migrations
+### User Management (Migration 007)
+- `user_profiles` - Extended user information
+- `user_settings` - User preferences and configuration
 
-To rollback, run `.down.sql` files in **reverse order**:
+### Utility Functions (Migration 002)
+- `get_daily_nutrition()` - Calculate daily nutrition totals
+- `get_date_range_nutrition()` - Calculate nutrition over date range
+- Various analytics and trajectory functions
 
-```sql
--- 1. Drop indexes first
--- Run 003_indexes.down.sql
+## Important Notes
 
--- 2. Drop functions
--- Run 002_rpc_functions.down.sql
+1. **Never modify existing migrations** after they've been applied to production
+2. **Always create new migrations** for schema changes
+3. **Test rollbacks** in development before applying to production
+4. **Backup database** before running migrations in production
+5. Common foods data is **loaded from JSON at startup** (`internal/seed/data/common_foods.json`), not seeded via migration
 
--- 3. Drop tables
--- Run 001_initial_schema.down.sql
+## Troubleshooting
+
+### Error: "column does not exist"
+- Check migration dependencies are run in correct order
+- Verify column name matches schema (e.g., `verified` not `is_verified` in common_foods)
+
+### Error: "relation already exists"
+- Migration may have already been applied
+- Use `CREATE TABLE IF NOT EXISTS` for idempotency
+
+### Error: "function does not exist"
+- RPC functions migration (002) may not be applied
+- Check function definitions exist in database
+
+## Quick Start for New Deployment
+
+Run all 8 migrations in order for a fresh database:
+
+```bash
+cd backend/migrations
+
+# Run all migrations (001-008)
+for i in {1..8}; do
+  num=$(printf "%03d" $i)
+  file=$(ls ${num}_*.up.sql 2>/dev/null)
+  if [ -f "$file" ]; then
+    echo "Running $file..."
+    psql $DATABASE_URL < "$file"
+  fi
+done
 ```
 
-## Key Features
+All migrations complete successfully = ✅ Database ready for production!
 
-### Row Level Security (RLS)
-All tables have RLS enabled with policies ensuring:
-- Users can only access their own data
-- No user can access other users' meals, templates, or weight entries
-- Common foods are read-only for all users
+## Current Schema Version
 
-### Timezone Handling
-- All timestamps stored as `TIMESTAMPTZ` (UTC)
-- RPC functions accept timezone parameter
-- Date boundaries calculated in user's local timezone
-- Example: `get_daily_nutrition(user_id, '2024-01-15', 'America/New_York')`
-
-### Denormalized Nutrition
-- Nutrition values stored directly in `meal_items` and `template_items`
-- No joins needed for daily totals (fast queries)
-- Maintains data consistency even if AI models change
-
-### Atomic Transactions
-- `create_meal_with_items()` ensures meal + all items created together
-- Prevents orphaned meals or partial data
-
-### Fuzzy Search
-- `pg_trgm` extension enables similarity search
-- `search_common_foods()` finds foods even with typos
-- Example: "chiken breast" → "Chicken Breast"
-
-### Performance Indexes
-- Composite indexes on common query patterns
-- GIN indexes for full-text search
-- Date-based indexes for aggregation queries
-
-## Data Validation
-
-All tables include CHECK constraints:
-- Positive values for nutrition (no negative calories)
-- Reasonable ranges (calories < 10000, weight < 500kg)
-- String length limits
-- Email format validation
-- Valid enums for flag types and sources
-
-## Testing Migrations
-
-After running migrations, verify:
-
-```sql
--- 1. Check all tables exist
-SELECT tablename FROM pg_tables WHERE schemaname = 'public';
-
--- 2. Verify RLS enabled
-SELECT tablename, rowsecurity
-FROM pg_tables
-WHERE schemaname = 'public';
-
--- 3. Test RPC function
-SELECT create_meal_with_items(
-    auth.uid(),
-    'Test Meal',
-    NOW(),
-    'Test notes',
-    '[{"food_name":"Apple","quantity":1,"unit":"medium","calories":95,"protein":0.5,"carbs":25,"fat":0.3}]'::jsonb
-);
-
--- 4. Test fuzzy search
-SELECT * FROM search_common_foods('chiken breast', 5);
-
--- 5. Check indexes
-SELECT indexname, indexdef
-FROM pg_indexes
-WHERE schemaname = 'public';
-```
-
-## Common Issues
-
-### Issue: "relation already exists"
-**Solution**: Table already created. Either skip or run down migration first.
-
-### Issue: "must be owner of extension uuid-ossp"
-**Solution**: Extension already exists (Supabase enables by default). Safe to ignore.
-
-### Issue: RLS policy errors
-**Solution**: Ensure `auth.uid()` returns valid UUID. Test with authenticated user.
-
-### Issue: Function execution denied
-**Solution**: Run `GRANT EXECUTE` statements from migration file.
-
-## Schema Version Tracking
-
-To track applied migrations:
-
-```sql
-CREATE TABLE schema_migrations (
-    version TEXT PRIMARY KEY,
-    applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Mark migrations as applied
-INSERT INTO schema_migrations (version) VALUES
-    ('001_initial_schema'),
-    ('002_rpc_functions'),
-    ('003_indexes');
-```
-
-## Next Steps
-
-After migrations:
-1. Populate `common_foods` table with nutrition data
-2. Configure Supabase Auth (email/password or OAuth)
-3. Set up Edge Functions for AI integration
-4. Configure Storage buckets if needed for photos
-5. Test API endpoints with authenticated users
-
-## Support
-
-For issues:
-- Check Supabase Dashboard → Logs
-- Review migration output for errors
-- Verify user authentication before testing RLS
-- Ensure project has necessary extensions enabled
-
-## Notes
-
-- **IMPORTANT**: Always backup database before running migrations
-- Migrations are idempotent where possible (IF NOT EXISTS)
-- RLS policies tested with authenticated users only
-- Timezone handling requires user timezone stored in `users.timezone`
-- AI usage tracking is for internal monitoring (no user access)
+**Latest:** 008 (Common foods indexes)
+**Total Migrations:** 8 (001-008, sequential)

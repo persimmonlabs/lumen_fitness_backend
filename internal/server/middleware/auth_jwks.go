@@ -19,6 +19,7 @@ import (
 // This supports Supabase's new JWT signing key rotation feature
 type JWKSKeyFunc struct {
 	jwksURL    string
+	anonKey    string
 	keys       map[string]*rsa.PublicKey
 	lastUpdate time.Time
 	mu         sync.RWMutex
@@ -41,9 +42,10 @@ type JWKS struct {
 }
 
 // NewJWKSKeyFunc creates a new JWKS key function
-func NewJWKSKeyFunc(supabaseURL string) *JWKSKeyFunc {
+func NewJWKSKeyFunc(supabaseURL, anonKey string) *JWKSKeyFunc {
 	return &JWKSKeyFunc{
 		jwksURL: fmt.Sprintf("%s/auth/v1/jwks", supabaseURL),
+		anonKey: anonKey,
 		keys:    make(map[string]*rsa.PublicKey),
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
@@ -103,6 +105,10 @@ func (j *JWKSKeyFunc) refreshKeys() error {
 	if err != nil {
 		return fmt.Errorf("failed to create JWKS request: %w", err)
 	}
+
+	// Supabase JWKS endpoint requires the anon key in apikey header
+	req.Header.Set("apikey", j.anonKey)
+	req.Header.Set("Authorization", "Bearer "+j.anonKey)
 
 	resp, err := j.httpClient.Do(req)
 	if err != nil {
@@ -191,9 +197,9 @@ func base64URLDecode(s string) ([]byte, error) {
 }
 
 // validateJWTWithJWKS validates a JWT token using JWKS
-func validateJWTWithJWKS(tokenString, supabaseURL, fallbackSecret string) (string, error) {
+func validateJWTWithJWKS(tokenString, supabaseURL, anonKey, fallbackSecret string) (string, error) {
 	// Create JWKS key function
-	jwksKeyFunc := NewJWKSKeyFunc(supabaseURL)
+	jwksKeyFunc := NewJWKSKeyFunc(supabaseURL, anonKey)
 
 	// Parse and validate token
 	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {

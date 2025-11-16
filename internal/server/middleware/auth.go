@@ -22,6 +22,10 @@ type AuthConfig struct {
 	// Required for validating tokens with key rotation
 	SupabaseURL string
 
+	// SupabaseAnonKey is the Supabase anon key (needed for JWKS endpoint auth)
+	// Required for fetching JWKS from Supabase
+	SupabaseAnonKey string
+
 	// Enabled determines whether authentication is enforced.
 	// When false, the middleware adds user info to context if present
 	// but doesn't reject unauthenticated requests.
@@ -64,10 +68,11 @@ type AuthConfig struct {
 }
 
 // DefaultAuthConfig returns authentication configuration with sensible defaults.
-func DefaultAuthConfig(jwtSecret, supabaseURL string) AuthConfig {
+func DefaultAuthConfig(jwtSecret, supabaseURL, anonKey string) AuthConfig {
 	return AuthConfig{
 		JWTSecret:       jwtSecret,
 		SupabaseURL:     supabaseURL,
+		SupabaseAnonKey: anonKey,
 		Enabled:         true,
 		SkipPaths:       []string{"/health", "/metrics"},
 		TokenLookup:     "header:Authorization",
@@ -167,7 +172,7 @@ func Auth(config AuthConfig) func(http.Handler) http.Handler {
 			// Validate and parse JWT token
 			// Use JWKS validation for tokens with kid header (new Supabase tokens)
 			// Fallback to HS256 for legacy tokens without kid
-			userID, err := validateJWTWithJWKS(token, config.SupabaseURL, config.JWTSecret)
+			userID, err := validateJWTWithJWKS(token, config.SupabaseURL, config.SupabaseAnonKey, config.JWTSecret)
 			if err != nil {
 				if config.Enabled {
 					// Authentication required but token invalid
